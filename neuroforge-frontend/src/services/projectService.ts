@@ -9,6 +9,8 @@ export interface Project {
   status: string;
   startDate?: string;
   endDate?: string;
+  methodology?: string;
+  techStack?: string;
   organizationId?: number;
   organizationName?: string;
   createdAt?: string;
@@ -19,16 +21,25 @@ export interface Sprint {
   id: number;
   sprintName: string;
   goal?: string;
-  status: string;
+  status?: string;
   startDate?: string;
   endDate?: string;
-  actualStartDate?: string;
-  actualEndDate?: string;
-  projectId?: number;
+  projectId: number;
+}
+
+export interface Milestone {
+  id: number;
+  projectId: number;
+  name: string;
+  description?: string;
+  targetDate: string;
+  actualDate?: string;
+  status: string;
 }
 
 export interface Task {
   id: number;
+  taskKey?: string; // Module 7: Task key for commit linking (e.g., NF-123)
   title: string;
   description?: string;
   priority: string;
@@ -80,6 +91,8 @@ export interface CreateProjectRequest {
   status?: string;
   startDate?: string;
   endDate?: string;
+  methodology?: string;
+  techStack?: string;
   organizationId: number;
 }
 
@@ -89,6 +102,8 @@ export interface UpdateProjectRequest {
   status?: string;
   startDate?: string;
   endDate?: string;
+  methodology?: string;
+  techStack?: string;
 }
 
 export interface CreateSprintRequest {
@@ -106,6 +121,22 @@ export interface UpdateSprintRequest {
   status?: string;
   startDate?: string;
   endDate?: string;
+}
+
+export interface CreateMilestoneRequest {
+  projectId: number;
+  name: string;
+  description?: string;
+  targetDate: string;
+  status?: string;
+}
+
+export interface UpdateMilestoneRequest {
+  name?: string;
+  description?: string;
+  targetDate?: string;
+  actualDate?: string;
+  status?: string;
 }
 
 export interface CreateTaskRequest {
@@ -244,6 +275,7 @@ export const projectService = {
   update: (id: number, data: UpdateProjectRequest) => api.put<any>(`/projects/${id}`, toIsoProject(data)),
   delete: (id: number) => api.delete(`/projects/${id}`),
   getStats: (id: number) => api.get<any>(`/projects/${id}/stats`),
+  getPortfolio: (orgId: number) => api.get<any>(`/projects/portfolio/${orgId}`),
 
   // ── Sprints ─────────────────────────────────────────────────────────────
   createSprint: (data: CreateSprintRequest) => api.post<any>('/sprints', toIsoSprint(data)),
@@ -261,6 +293,13 @@ export const projectService = {
   getSprintBurndown: (id: number) => api.get<any>(`/sprints/${id}/burndown`),
   getSprintVelocity: (id: number) => api.get<any>(`/sprints/${id}/velocity`),
   getTaskDistribution: (id: number) => api.get<any>(`/sprints/${id}/distribution`),
+
+  // ── Milestones ───────────────────────────────────────────────────────────
+  createMilestone: (data: CreateMilestoneRequest) => api.post<any>('/milestones', data),
+  getMilestonesByProject: (projectId: number) => api.get<any>(`/milestones/project/${projectId}`),
+  getMilestoneById: (id: number) => api.get<any>(`/milestones/${id}`),
+  updateMilestone: (id: number, data: UpdateMilestoneRequest) => api.put<any>(`/milestones/${id}`, data),
+  deleteMilestone: (id: number) => api.delete(`/milestones/${id}`),
 
   // ── Tasks ───────────────────────────────────────────────────────────────
   createTask: (data: CreateTaskRequest) => api.post<any>('/tasks', data),

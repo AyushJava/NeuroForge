@@ -23,4 +23,6 @@ public interface RepositoryConnectionService {
 
     ApiResponse<List<TaskCommitResponse>> getTaskCommitsByTaskId(Long taskId);
 
+    ApiResponse<Void> deleteRepository(Long repositoryId);
+
 }

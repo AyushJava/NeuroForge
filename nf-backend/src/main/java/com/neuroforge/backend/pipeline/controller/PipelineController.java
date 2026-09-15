@@ -2,9 +2,10 @@ package com.neuroforge.backend.pipeline.controller;
 
 import com.neuroforge.backend.dto.ApiResponse;
 import com.neuroforge.backend.pipeline.dto.*;
+import com.neuroforge.backend.pipeline.entity.Pipeline;
 import com.neuroforge.backend.pipeline.service.PipelineService;
 import lombok.RequiredArgsConstructor;
-
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,8 +30,9 @@ public class PipelineController {
     }
 
     @GetMapping("/history")
-    public ApiResponse<List<PipelineHistoryResponse>> getPipelineHistory() {
-        return pipelineService.getPipelineHistory();
+    public ApiResponse<List<PipelineHistoryResponse>> getPipelineHistory(
+            @RequestParam(required = false) Long orgId) {
+        return pipelineService.getPipelineHistory(orgId);
     }
 
     @PostMapping("/release")
@@ -40,6 +42,7 @@ public class PipelineController {
     }
 
     @GetMapping("/release/{releaseId}/notes")
+    @PreAuthorize("hasAuthority('ROLE_PROJECT_MANAGER')")
     public ApiResponse<ReleaseNoteResponse> generateReleaseNotes(
             @PathVariable Long releaseId) {
         return pipelineService.generateReleaseNotes(releaseId);
@@ -59,8 +62,9 @@ public class PipelineController {
     }
 
     @GetMapping("/metrics")
-    public ApiResponse<PipelineMetricsResponse> getPipelineMetrics() {
-        return pipelineService.getPipelineMetrics();
+    public ApiResponse<PipelineMetricsResponse> getPipelineMetrics(
+            @RequestParam(required = false) Long orgId) {
+        return pipelineService.getPipelineMetrics(orgId);
     }
 
     @PostMapping("/{runId}/retry")
@@ -76,13 +80,21 @@ public class PipelineController {
     }
 
     @GetMapping("/releases")
-    public ApiResponse<List<ReleaseHistoryResponse>> getReleaseHistory() {
-        return pipelineService.getReleaseHistory();
+    public ApiResponse<List<ReleaseHistoryResponse>> getReleaseHistory(
+            @RequestParam(required = false) Long orgId) {
+        return pipelineService.getReleaseHistory(orgId);
     }
 
     @PostMapping("/release/{releaseId}/publish")
+    @PreAuthorize("hasAuthority('ROLE_PROJECT_MANAGER')")
     public ApiResponse<ReleaseResponse> publishRelease(
             @PathVariable Long releaseId) {
         return pipelineService.publishRelease(releaseId);
+    }
+
+    @GetMapping("/active")
+    public ApiResponse<Pipeline> getActivePipeline(
+            @RequestParam(required = false) Long orgId) {
+        return pipelineService.getActivePipeline(orgId);
     }
 }

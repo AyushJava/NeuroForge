@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'wouter';
-import { GitBranch, GitCommit, RefreshCw, Plus, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
+import { GitBranch, GitCommit, RefreshCw, Plus, ExternalLink, Loader2, AlertCircle, Trash2 } from 'lucide-react';
 import Sidebar from '@/components/common/Sidebar';
 import DashboardNavbar from '@/components/common/DashboardNavbar';
 import { repositoryService, RepositoryConnectionResponse, ConnectRepositoryRequest } from '@/services/repositoryService';
@@ -47,6 +47,13 @@ export default function RepositoryIntegrationPage({ projectId: propProjectId, is
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (repositoryId: number) => repositoryService.deleteRepository(repositoryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['repositories', projectId] });
+    },
+  });
+
   const handleConnect = (e: React.FormEvent) => {
     e.preventDefault();
     connectMutation.mutate(formData);
@@ -54,6 +61,12 @@ export default function RepositoryIntegrationPage({ projectId: propProjectId, is
 
   const handleSync = (repositoryId: number) => {
     syncMutation.mutate(repositoryId);
+  };
+
+  const handleDelete = (repositoryId: number) => {
+    if (confirm('Are you sure you want to delete this repository connection?')) {
+      deleteMutation.mutate(repositoryId);
+    }
   };
 
   const content = (
@@ -86,7 +99,7 @@ export default function RepositoryIntegrationPage({ projectId: propProjectId, is
       ) : (
         <div className="space-y-6">
           {repositories && repositories.length > 0 ? (
-            repositories.map((repo) => (
+            repositories.map((repo: RepositoryConnectionResponse) => (
               <div key={repo.id} className="bg-card border border-border rounded-xl p-6 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -110,18 +123,31 @@ export default function RepositoryIntegrationPage({ projectId: propProjectId, is
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleSync(repo.id)}
-                    disabled={syncMutation.isPending}
-                    className="ml-4 bg-primary/10 hover:bg-primary/20 text-primary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
-                  >
-                    {syncMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4" />
-                    )}
-                    Sync Now
-                  </button>
+                  <div className="flex items-center gap-2 ml-4">
+                    <button
+                      onClick={() => handleSync(repo.id)}
+                      disabled={syncMutation.isPending}
+                      className="bg-primary/10 hover:bg-primary/20 text-primary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      {syncMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                      Sync Now
+                    </button>
+                    <button
+                      onClick={() => handleDelete(repo.id)}
+                      disabled={deleteMutation.isPending}
+                      className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      {deleteMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))

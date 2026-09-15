@@ -15,6 +15,9 @@ import com.neuroforge.backend.specification.mapper.SpecificationMapper;
 import com.neuroforge.backend.specification.repository.SpecificationRepository;
 import com.neuroforge.backend.specification.repository.SpecificationVersionRepository;
 import com.neuroforge.backend.specification.service.SpecificVersionService;
+import com.neuroforge.backend.notification.service.NotificationService;
+import com.neuroforge.backend.entity.User;
+import com.neuroforge.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +35,8 @@ public class SpecificVersionServiceImpl implements SpecificVersionService {
     private final SpecificationVersionRepository versionRepository;
     private final SpecificationRepository specificationRepository;
     private final SpecificationMapper specificationMapper;
+    private final NotificationService notificationService;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -173,6 +178,15 @@ public class SpecificVersionServiceImpl implements SpecificVersionService {
         version = versionRepository.save(version);
 
         log.info("Version approved successfully | specificationId={} | version={} | status={}", specificationId, versionNumber, version.getStatus());
+
+        // Notify organization members about approval
+        if (version.getSpecification() != null && version.getSpecification().getOrganizationId() != null) {
+            notifyOrganizationMembers(version.getSpecification().getOrganizationId(),
+                "Specification Approved",
+                "Specification \"" + version.getSpecification().getTitle() + "\" version " + versionNumber + " has been approved.",
+                "SPECIFICATION");
+        }
+
         return specificationMapper.toResponse(version);
     }
 
@@ -381,6 +395,17 @@ public class SpecificVersionServiceImpl implements SpecificVersionService {
         log.info("Draft Version updated successfully | specificationId={} | version={}", specificationId, versionNumber);
 
         return specificationMapper.toResponse(version);
+    }
+
+    private void notifyOrganizationMembers(Long organizationId, String title, String message, String type) {
+        try {
+            List<User> orgMembers = userRepository.findByOrganizationId(organizationId);
+            for (User member : orgMembers) {
+                notificationService.create(member, title, message, type);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to notify organization members: {}", e.getMessage());
+        }
     }
 
 }

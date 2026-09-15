@@ -13,4 +13,6 @@ public interface ReviewDocumentRepository extends MongoRepository<ReviewDocument
     List<ReviewDocument> findByTaskId(String taskId);
 
     List<ReviewDocument> findAllByOrderByCreatedAtAsc();
+
+    List<ReviewDocument> findByOrganizationIdOrderByCreatedAtAsc(Long organizationId);
 }

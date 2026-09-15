@@ -1,5 +1,6 @@
 package com.neuroforge.backend.specification.entity;
 
+import com.neuroforge.backend.organization.entity.Organization;
 import com.neuroforge.backend.specification.enums.SpecificationStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -15,7 +16,8 @@ import java.util.UUID;
         indexes = {
                 @Index(name = "idx_spec_key", columnList = "specification_key"),
                 @Index(name = "idx_status", columnList = "status"),
-                @Index(name = "idx_deleted", columnList = "deleted")
+                @Index(name = "idx_deleted", columnList = "deleted"),
+                @Index(name = "idx_organization", columnList = "organization_id")
         }
 )
 @Getter
@@ -50,6 +52,16 @@ public class Specification {
     @Column(nullable = false)
     @Builder.Default
     private Boolean deleted = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id", nullable = true)
+    private Organization organization;
+
+    @Column(name = "organization_id", insertable = false, updatable = false)
+    private Long organizationId;
+
+    @Column(name = "project_id", nullable = true)
+    private UUID projectId;
 
     @OneToMany(
             mappedBy = "specification",

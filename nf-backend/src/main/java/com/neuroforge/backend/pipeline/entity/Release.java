@@ -1,5 +1,6 @@
 package com.neuroforge.backend.pipeline.entity;
 
+import com.neuroforge.backend.organization.entity.Organization;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -18,7 +19,7 @@ public class Release {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String version;
 
     @Column(columnDefinition = "TEXT")
@@ -31,4 +32,8 @@ public class Release {
     private LocalDateTime createdAt;
 
     private LocalDateTime releasedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id", nullable = true)
+    private Organization organization;
 }

@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { CheckCircle2, XCircle, Loader2, Mail, Building2, ShieldCheck } from 'lucide-react';
 import { organizationService } from '@/services/organizationService';
 import api from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 
 interface InviteDetails {
   id: number;
@@ -26,6 +27,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function InvitationPage() {
   const [, setLocation] = useLocation();
+  const { logout } = useAuth();
   const [token, setToken] = useState('');
   const [stage, setStage] = useState<Stage>('loading');
   const [details, setDetails] = useState<InviteDetails | null>(null);
@@ -173,7 +175,10 @@ export default function InvitationPage() {
             </div>
             <h1 className="text-xl font-bold text-white mb-2">Invitation Accepted</h1>
             <p className="text-sm text-gray-400 mb-6">{message}</p>
-            <button onClick={() => setLocation('/login')}
+            <button onClick={() => {
+              logout();
+              setLocation('/login');
+            }}
               className="w-full px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors">
               Go to Login
             </button>

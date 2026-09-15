@@ -27,7 +27,7 @@ public class ProjectController {
 
     @PostMapping
     @Operation(summary = "Create Project")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<ProjectDto>> createProject(
             @Valid @RequestBody CreateProjectRequest request) {
         return ResponseEntity.ok(projectService.createProject(request));
@@ -35,7 +35,7 @@ public class ProjectController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update Project")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<ProjectDto>> updateProject(
             @PathVariable Long id,
             @Valid @RequestBody UpdateProjectRequest request) {
@@ -44,7 +44,7 @@ public class ProjectController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete Project")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deleteProject(@PathVariable Long id) {
         return ResponseEntity.ok(projectService.deleteProject(id));
     }
@@ -53,8 +53,9 @@ public class ProjectController {
 
     @GetMapping
     @Operation(summary = "Get all projects")
-    public ResponseEntity<ApiResponse<List<ProjectDto>>> getAllProjects() {
-        return ResponseEntity.ok(projectService.getAllProjects());
+    public ResponseEntity<ApiResponse<List<ProjectDto>>> getAllProjects(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.neuroforge.backend.entity.User currentUser) {
+        return ResponseEntity.ok(projectService.getAllProjects(currentUser));
     }
 
     @GetMapping("/organization/{organizationId}")

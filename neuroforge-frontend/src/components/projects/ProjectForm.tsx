@@ -12,6 +12,8 @@ const schema = z.object({
   status: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  methodology: z.string().optional(),
+  techStack: z.string().optional(),
   organizationId: z.number({ invalid_type_error: 'Organization is required' }).min(1, 'Organization is required'),
 });
 
@@ -25,6 +27,7 @@ interface Props {
 }
 
 const STATUSES = ['ACTIVE', 'ON_HOLD', 'COMPLETED', 'ARCHIVED', 'INACTIVE'];
+const METHODOLOGIES = ['AGILE', 'WATERFALL', 'HYBRID'];
 
 export default function ProjectForm({ defaultValues, onSubmit, isLoading = false, isEdit = false }: Props) {
   const { register, handleSubmit, formState: { errors }, setValue, reset } = useForm<ProjectFormValues>({
@@ -35,6 +38,8 @@ export default function ProjectForm({ defaultValues, onSubmit, isLoading = false
       status: 'ACTIVE',
       startDate: '',
       endDate: '',
+      methodology: '',
+      techStack: '',
       organizationId: 0,
       ...defaultValues,
     },
@@ -42,7 +47,7 @@ export default function ProjectForm({ defaultValues, onSubmit, isLoading = false
 
   // Reset when defaultValues change (edit mode)
   useEffect(() => {
-    if (defaultValues) reset({ projectName: '', description: '', status: 'ACTIVE', startDate: '', endDate: '', organizationId: 0, ...defaultValues });
+    if (defaultValues) reset({ projectName: '', description: '', status: 'ACTIVE', startDate: '', endDate: '', methodology: '', techStack: '', organizationId: 0, ...defaultValues });
   }, [JSON.stringify(defaultValues)]);
 
   const { data: orgsData } = useQuery({
@@ -98,6 +103,25 @@ export default function ProjectForm({ defaultValues, onSubmit, isLoading = false
         <select className={inputClass} {...register('status')}>
           {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+      </div>
+
+      {/* Methodology */}
+      <div>
+        <label className={labelClass}>Methodology</label>
+        <select className={inputClass} {...register('methodology')}>
+          <option value="">Select methodology...</option>
+          {METHODOLOGIES.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+
+      {/* Tech Stack */}
+      <div>
+        <label className={labelClass}>Tech Stack</label>
+        <input
+          className={inputClass}
+          placeholder="e.g. React, Node.js, PostgreSQL (comma-separated)"
+          {...register('techStack')}
+        />
       </div>
 
       {/* Dates */}

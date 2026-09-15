@@ -9,6 +9,7 @@ import com.neuroforge.backend.organization.entity.InviteStatus;
 import com.neuroforge.backend.organization.entity.OrgRole;
 import com.neuroforge.backend.organization.entity.TeamMember;
 import com.neuroforge.backend.organization.repository.InviteRepository;
+import com.neuroforge.backend.organization.repository.OrganizationRepository;
 import com.neuroforge.backend.organization.repository.TeamMemberRepository;
 import com.neuroforge.backend.repository.OtpRepository;
 import com.neuroforge.backend.repository.UserRepository;
@@ -41,6 +42,7 @@ public class AuthServiceImpl implements AuthService {
     private final JavaMailSender        mailSender;
     private final InviteRepository      inviteRepository;
     private final TeamMemberRepository  teamMemberRepository;
+    private final OrganizationRepository orgRepository;
 
     // ── Send OTP for registration ─────────────────────────────────────────────
 
@@ -74,7 +76,27 @@ public class AuthServiceImpl implements AuthService {
         Object[] roleResult = determineRoleForRegistration(request.getEmail(), request.getRole());
         String assignedRole = (String) roleResult[0];
         boolean requiresApproval = (Boolean) roleResult[1];
+        boolean hasInvitation = !requiresApproval; // If no approval required, it means user has invitation
         log.info("Assigning role {} to user {} during registration (approval required: {})", assignedRole, request.getEmail(), requiresApproval);
+
+        // Validate organizationId for normal registration (no invitation)
+        Long orgId = request.getOrganizationId();
+        if (!hasInvitation) {
+            // Normal registration: organizationId is required
+            if (orgId == null) {
+                throw AppException.badRequest("Organization selection is required for registration");
+            }
+            // Validate that the organization exists
+            if (!orgRepository.existsById(orgId)) {
+                throw AppException.notFound("Selected organization does not exist");
+            }
+            log.info("User {} registering with organizationId: {}", request.getEmail(), orgId);
+        } else {
+            // Invitation-based registration: clear organizationId from request
+            // The organizationId will be set from the TeamMember relationship instead
+            orgId = null;
+            log.info("User {} registering via invitation, organizationId will be set from invitation", request.getEmail());
+        }
 
         User user = User.builder()
                 .name(request.getName())
@@ -82,7 +104,7 @@ public class AuthServiceImpl implements AuthService {
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(assignedRole)
-                .organizationId(request.getOrganizationId())
+                .organizationId(orgId)
                 .enabled(true)   // verified via OTP
                 .approvalStatus(requiresApproval ? "PENDING" : "APPROVED")
                 .build();
@@ -94,6 +116,21 @@ public class AuthServiceImpl implements AuthService {
         // before this account existed (i.e. the user clicked Accept on the
         // invitation email and only registered afterwards).
         materialiseAcceptedInvitations(user);
+
+        // If user registered with an organizationId but has no TeamMember, create one
+        // This handles the case where a user registers directly with an organization
+        if (orgId != null && assignedRole.equals("ROLE_PROJECT_MANAGER")) {
+            boolean alreadyMember = teamMemberRepository.findByUserIdAndOrganizationId(user.getId(), orgId).isPresent();
+            if (!alreadyMember) {
+                TeamMember teamMember = TeamMember.builder()
+                        .user(user)
+                        .organization(orgRepository.findById(orgId).orElse(null))
+                        .role(OrgRole.PROJECT_MANAGER)
+                        .build();
+                teamMemberRepository.save(teamMember);
+                log.info("Created TeamMember for user {} in org {} during registration", user.getId(), orgId);
+            }
+        }
 
         return ApiResponse.ok("Registration successful. You can now log in.");
     }
@@ -357,6 +394,15 @@ public class AuthServiceImpl implements AuthService {
                                 user.getEmail(), invite.getOrganization().getId());
                     } else {
                         log.info("User {} is already a member of org {}", user.getEmail(), invite.getOrganization().getId());
+                    }
+                    
+                    // Set the user's organizationId to the invited organization if not already set
+                    // This ensures the JWT contains the correct organization context
+                    if (user.getOrganizationId() == null) {
+                        user.setOrganizationId(invite.getOrganization().getId());
+                        userRepository.save(user);
+                        log.info("Set organizationId {} for user {} from accepted invitation", 
+                                invite.getOrganization().getId(), user.getEmail());
                     }
                 } catch (Exception e) {
                     log.error("Failed to create TeamMember for invitation {}: {}", invite.getId(), e.getMessage(), e);

@@ -6,6 +6,8 @@ export interface Specification {
   title: string;
   currentVersion: number;
   status: 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED';
+  organizationId?: number;
+  projectId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,12 +72,16 @@ export interface SaveAISpecificationRequest {
   functionalRequirements: string[];
   nonFunctionalRequirements: string[];
   aiSpecificationId?: string;
+  organizationId?: number;
 }
 
 export const specificationService = {
-  getAll: (params?: { title?: string; status?: string; page?: number; size?: number }) =>
+  getAll: (params?: { title?: string; status?: string; orgId?: number; page?: number; size?: number }) =>
     api.get('/specifications', { params }),
-  
+
+  getApprovedSpecificationsByProject: (projectId: number) =>
+    api.get(`/specifications/project/${projectId}/approved`),
+
   getById: (id: string) =>
     api.get(`/specifications/${id}`),
   

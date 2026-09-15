@@ -184,42 +184,42 @@ export interface ProjectHealthSummary {
 
 const analyticsService = {
   // Dashboard
-  getDashboard: () => api.get<AnalyticsDashboardResponse>('/analytics/dashboard'),
-  
+  getDashboard: (orgId?: number) => api.get<AnalyticsDashboardResponse>('/analytics/dashboard', { params: orgId ? { orgId } : {} }),
+
   // Portfolio Health
   getPortfolioHealth: (orgId: number) => api.get<PortfolioHealthResponse>(`/analytics/portfolio/organization/${orgId}`),
-  
+
   // Sprint Analytics
   getSprintAnalytics: (sprintId: number) => api.get<SprintAnalyticsResponse>(`/analytics/sprint/${sprintId}`),
   getSprintHealthSummary: (sprintId: number) => api.get<SprintHealthSummaryResponse>(`/analytics/sprint/${sprintId}/health-summary`),
   getSprintReportPdf: (sprintId: number) => api.get(`/analytics/reports/sprint/${sprintId}/pdf`, { responseType: 'blob' }),
-  
+
   // Developer Analytics
   getDeveloperAnalytics: (userId: number) => api.get<DeveloperAnalyticsResponse>(`/analytics/developer/${userId}`),
-  
+
   // Task Distribution
-  getTaskDistribution: () => api.get<TaskDistributionResponse>('/analytics/task-distribution'),
-  
+  getTaskDistribution: (orgId?: number) => api.get<TaskDistributionResponse>('/analytics/task-distribution', { params: orgId ? { orgId } : {} }),
+
   // Velocity
-  getVelocity: () => api.get<VelocityResponse>('/analytics/velocity'),
+  getVelocity: (orgId?: number) => api.get<VelocityResponse>('/analytics/velocity', { params: orgId ? { orgId } : {} }),
   getVelocityHistory: () => api.get<VelocityHistoryResponse>('/analytics/velocity-history'),
-  
+
   // Burndown
-  getBurndown: () => api.get<BurndownResponse>('/analytics/burndown'),
-  
+  getBurndown: (orgId?: number) => api.get<BurndownResponse>('/analytics/burndown', { params: orgId ? { orgId } : {} }),
+
   // Issue Trends
-  getIssueTrend: () => api.get<IssueTrendResponse>('/analytics/issue-trend'),
-  
+  getIssueTrend: (orgId?: number) => api.get<IssueTrendResponse>('/analytics/issue-trend', { params: orgId ? { orgId } : {} }),
+
   // Cycle Time
-  getCycleTime: () => api.get<CycleTimeResponse>('/analytics/cycle-time'),
-  
+  getCycleTime: (orgId?: number) => api.get<CycleTimeResponse>('/analytics/cycle-time', { params: orgId ? { orgId } : {} }),
+
   // Deployment Metrics
   getDeploymentFrequency: () => api.get<DeploymentFrequencyResponse>('/analytics/deployment-frequency'),
   getChangeFailureRate: () => api.get<ChangeFailureRateResponse>('/analytics/change-failure-rate'),
-  
+
   // Metrics Snapshots
   getSnapshot: (date: string) => api.get<MetricsSnapshotResponse>(`/analytics/snapshots/${date}`),
-  getSnapshots: (startDate: string, endDate: string) => 
+  getSnapshots: (startDate: string, endDate: string) =>
     api.get<MetricsSnapshotResponse[]>('/analytics/snapshots', { params: { startDate, endDate } }),
 };
 

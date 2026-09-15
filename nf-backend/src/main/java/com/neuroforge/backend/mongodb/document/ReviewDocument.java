@@ -39,4 +39,7 @@ public class ReviewDocument {
     private List<ReviewIssue> issues;
 
     private LocalDateTime createdAt;
+
+    // Organization tracking for analytics filtering
+    private Long organizationId;
 }

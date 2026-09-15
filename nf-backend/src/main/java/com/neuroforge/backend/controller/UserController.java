@@ -3,6 +3,10 @@ package com.neuroforge.backend.controller;
 import com.neuroforge.backend.dto.*;
 import com.neuroforge.backend.entity.User;
 import com.neuroforge.backend.exception.AppException;
+import com.neuroforge.backend.organization.repository.InviteRepository;
+import com.neuroforge.backend.organization.repository.OrganizationRepository;
+import com.neuroforge.backend.organization.repository.TeamMemberRepository;
+import com.neuroforge.backend.organization.repository.TeamRepository;
 import com.neuroforge.backend.repository.UserRepository;
 import com.neuroforge.backend.project.repository.ProjectMemberRepository;
 import com.neuroforge.backend.project.repository.TaskRepository;
@@ -32,6 +36,11 @@ public class UserController {
     private final PasswordEncoder passwordEncoder;
     private final ProjectMemberRepository projectMemberRepository;
     private final TaskRepository taskRepository;
+    private final TeamMemberRepository teamMemberRepository;
+    private final InviteRepository inviteRepository;
+    private final OrganizationRepository organizationRepository;
+    private final TeamRepository teamRepository;
+    private final com.neuroforge.backend.project.repository.CodeReviewRepository codeReviewRepository;
 
     // ── Current user profile ─────────────────────────────────────────────────
 
@@ -110,6 +119,7 @@ public class UserController {
     @PostMapping
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     @Operation(summary = "Create a new user (Super Admin only)")
+    @Transactional
     public ResponseEntity<ApiResponse<UserDTO>> createUser(@Valid @RequestBody CreateUserRequest req) {
         // Check if username already exists
         if (userRepository.findByUsername(req.getUsername()).isPresent()) {
@@ -131,6 +141,33 @@ public class UserController {
                 .build();
 
         User saved = userRepository.save(user);
+
+        // If organizationId is provided, create a TeamMember record to add the user to the organization
+        if (req.getOrganizationId() != null) {
+            organizationRepository.findById(req.getOrganizationId()).ifPresent(org -> {
+                boolean alreadyMember = teamMemberRepository.findByUserIdAndOrganizationId(saved.getId(), org.getId()).isPresent();
+                if (!alreadyMember) {
+                    com.neuroforge.backend.organization.entity.OrgRole orgRole = com.neuroforge.backend.organization.entity.OrgRole.DEVELOPER;
+                    if ("ROLE_ORG_ADMIN".equals(req.getRole())) {
+                        orgRole = com.neuroforge.backend.organization.entity.OrgRole.ORG_ADMIN;
+                    } else if ("ROLE_PROJECT_MANAGER".equals(req.getRole())) {
+                        orgRole = com.neuroforge.backend.organization.entity.OrgRole.PROJECT_MANAGER;
+                    } else if ("ROLE_QA".equals(req.getRole())) {
+                        orgRole = com.neuroforge.backend.organization.entity.OrgRole.QA;
+                    } else if ("ROLE_CLIENT".equals(req.getRole())) {
+                        orgRole = com.neuroforge.backend.organization.entity.OrgRole.CLIENT;
+                    }
+
+                    com.neuroforge.backend.organization.entity.TeamMember teamMember = com.neuroforge.backend.organization.entity.TeamMember.builder()
+                            .user(saved)
+                            .organization(org)
+                            .role(orgRole)
+                            .build();
+                    teamMemberRepository.save(teamMember);
+                }
+            });
+        }
+
         return ResponseEntity.ok(ApiResponse.ok("User created successfully", UserDTO.from(saved)));
     }
 
@@ -160,11 +197,34 @@ public class UserController {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> AppException.notFound("User not found"));
 
-        // Remove user from all project memberships
-        projectMemberRepository.deleteAllByTeamMemberId(id);
+        // Clear team lead reference if this user is a team lead
+        teamRepository.clearTeamLead(id);
 
-        // Unassign user from tasks (set assignedToId to null)
+        // Clear code review references
+        codeReviewRepository.clearApprovedBy(id);
+        codeReviewRepository.deleteByRequestedBy(id);
+
+        // Get all TeamMember records for this user first
+        List<com.neuroforge.backend.organization.entity.TeamMember> teamMembers = teamMemberRepository.findByUserId(id);
+
+        // Remove user from all project memberships for each TeamMember
+        for (com.neuroforge.backend.organization.entity.TeamMember tm : teamMembers) {
+            projectMemberRepository.deleteByTeamMemberId(tm.getId());
+        }
+
+        // Unassign user from tasks (set assignedTo to null)
         taskRepository.unassignTasksByUserId(id);
+
+        // Delete TeamMember records for this user using bulk delete
+        // This is more reliable than JPA deleteAll for foreign key constraints
+        teamMemberRepository.deleteByUserId(id);
+
+        // Delete all invitations for this user's email to prevent role conflicts on re-registration
+        inviteRepository.deleteByEmail(user.getEmail());
+
+        // Clear organization createdBy reference if this user created any organizations
+        // This is needed to avoid foreign key constraint violations
+        organizationRepository.clearCreatedBy(id);
 
         // Delete the user
         userRepository.deleteById(id);
@@ -175,6 +235,7 @@ public class UserController {
     @PutMapping("/{id}/approve")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN')")
     @Operation(summary = "Approve or reject a user (Super Admin / Org Admin only)")
+    @Transactional
     public ResponseEntity<ApiResponse<UserDTO>> approveUser(
             @PathVariable Long id,
             @Valid @RequestBody ApproveUserRequest req,
@@ -186,6 +247,32 @@ public class UserController {
             user.setApprovalStatus("APPROVED");
             user.setApprovedBy(currentUser.getId());
             user.setApprovedAt(java.time.LocalDateTime.now());
+
+            // If user has an organizationId (from normal registration), create TeamMember record
+            if (user.getOrganizationId() != null) {
+                organizationRepository.findById(user.getOrganizationId()).ifPresent(org -> {
+                    boolean alreadyMember = teamMemberRepository.findByUserIdAndOrganizationId(user.getId(), org.getId()).isPresent();
+                    if (!alreadyMember) {
+                        com.neuroforge.backend.organization.entity.OrgRole orgRole = com.neuroforge.backend.organization.entity.OrgRole.DEVELOPER;
+                        if ("ROLE_ORG_ADMIN".equals(user.getRole())) {
+                            orgRole = com.neuroforge.backend.organization.entity.OrgRole.ORG_ADMIN;
+                        } else if ("ROLE_PROJECT_MANAGER".equals(user.getRole())) {
+                            orgRole = com.neuroforge.backend.organization.entity.OrgRole.PROJECT_MANAGER;
+                        } else if ("ROLE_QA".equals(user.getRole())) {
+                            orgRole = com.neuroforge.backend.organization.entity.OrgRole.QA;
+                        } else if ("ROLE_CLIENT".equals(user.getRole())) {
+                            orgRole = com.neuroforge.backend.organization.entity.OrgRole.CLIENT;
+                        }
+
+                        com.neuroforge.backend.organization.entity.TeamMember teamMember = com.neuroforge.backend.organization.entity.TeamMember.builder()
+                                .user(user)
+                                .organization(org)
+                                .role(orgRole)
+                                .build();
+                        teamMemberRepository.save(teamMember);
+                    }
+                });
+            }
         } else if ("REJECT".equals(req.getAction())) {
             user.setApprovalStatus("REJECTED");
             user.setApprovedBy(currentUser.getId());
@@ -201,10 +288,48 @@ public class UserController {
     @GetMapping("/pending")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN')")
     @Operation(summary = "Get pending users awaiting approval")
-    public ResponseEntity<ApiResponse<List<UserDTO>>> getPendingUsers() {
-        List<UserDTO> users = userRepository.findAll()
-                .stream()
-                .filter(u -> "PENDING".equals(u.getApprovalStatus()))
+    public ResponseEntity<ApiResponse<List<UserDTO>>> getPendingUsers(@AuthenticationPrincipal User currentUser) {
+        List<User> pendingUsers;
+
+        // Super Admin sees all pending users
+        if ("ROLE_SUPER_ADMIN".equals(currentUser.getRole())) {
+            pendingUsers = userRepository.findAll()
+                    .stream()
+                    .filter(u -> "PENDING".equals(u.getApprovalStatus()))
+                    .toList();
+        }
+        // Org Admin sees pending users for their organization (from TeamMember or organizationId)
+        else if ("ROLE_ORG_ADMIN".equals(currentUser.getRole())) {
+            // Get organization IDs from TeamMember records
+            List<Long> orgIdsFromTeamMember = new java.util.ArrayList<>(teamMemberRepository.findByUserId(currentUser.getId())
+                    .stream()
+                    .map(m -> m.getOrganization().getId())
+                    .toList());
+
+            // Also include organizationId if set (for Org Admins who are the org creator)
+            if (currentUser.getOrganizationId() != null && !orgIdsFromTeamMember.contains(currentUser.getOrganizationId())) {
+                orgIdsFromTeamMember.add(currentUser.getOrganizationId());
+            }
+
+            // If Org Admin has no organization, return empty list
+            if (orgIdsFromTeamMember.isEmpty()) {
+                pendingUsers = List.of();
+            } else {
+                final List<Long> finalOrgIds = orgIdsFromTeamMember;
+                pendingUsers = userRepository.findAll()
+                        .stream()
+                        .filter(u -> "PENDING".equals(u.getApprovalStatus())
+                                && u.getOrganizationId() != null
+                                && finalOrgIds.contains(u.getOrganizationId()))
+                        .toList();
+            }
+        }
+        // Other roles return empty list
+        else {
+            pendingUsers = List.of();
+        }
+
+        List<UserDTO> users = pendingUsers.stream()
                 .map(UserDTO::from)
                 .toList();
         return ResponseEntity.ok(ApiResponse.ok("Pending users retrieved", users));

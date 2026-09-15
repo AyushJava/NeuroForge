@@ -6,6 +6,7 @@ import { TrendingUp, Clock, CheckCircle, Download, Loader2, FolderKanban, Eye } 
 import Sidebar from '@/components/common/Sidebar';
 import DashboardNavbar from '@/components/common/DashboardNavbar';
 import analyticsService from '@/services/analyticsService';
+import { organizationService, Organization } from '@/services/organizationService';
 import { useAuth } from '@/context/AuthContext';
 
 interface StatCardProps {
@@ -29,21 +30,33 @@ function StatCard({ label, value, icon: Icon, color, bg }: StatCardProps) {
 }
 
 export default function ClientAnalyticsDashboard() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+
+  // Get the most recent organization to filter analytics
+  const { data: orgsData } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: () => organizationService.getAll().then(r => r.data),
+    enabled: role === 'org-admin',
+  });
+  const orgs: Organization[] = orgsData?.data || [];
+  const activeOrg = orgs.length > 0 ? orgs[orgs.length - 1] : null;
 
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
-    queryKey: ['client-analytics-dashboard'],
-    queryFn: () => analyticsService.getDashboard().then(r => r.data),
+    queryKey: ['client-analytics-dashboard', activeOrg?.id],
+    queryFn: () => analyticsService.getDashboard(activeOrg?.id).then(r => r.data),
+    enabled: role !== 'org-admin' || !!activeOrg?.id,
   });
 
   const { data: velocityData, isLoading: velocityLoading } = useQuery({
-    queryKey: ['client-velocity'],
-    queryFn: () => analyticsService.getVelocity().then(r => r.data),
+    queryKey: ['client-velocity', activeOrg?.id],
+    queryFn: () => analyticsService.getVelocity(activeOrg?.id).then(r => r.data),
+    enabled: role !== 'org-admin' || !!activeOrg?.id,
   });
 
   const { data: burndownData, isLoading: burndownLoading } = useQuery({
-    queryKey: ['client-burndown'],
-    queryFn: () => analyticsService.getBurndown().then(r => r.data),
+    queryKey: ['client-burndown', activeOrg?.id],
+    queryFn: () => analyticsService.getBurndown(activeOrg?.id).then(r => r.data),
+    enabled: role !== 'org-admin' || !!activeOrg?.id,
   });
 
   const dashboard = dashboardData;

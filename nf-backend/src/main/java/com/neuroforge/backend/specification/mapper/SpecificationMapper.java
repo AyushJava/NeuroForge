@@ -23,6 +23,8 @@ public class SpecificationMapper {
                 .title(specification.getTitle())
                 .currentVersion(specification.getCurrentVersion())
                 .status(specification.getStatus())
+                .organizationId(specification.getOrganizationId())
+                .projectId(specification.getProjectId())
                 .createdAt(specification.getCreatedAt())
                 .updatedAt(specification.getUpdatedAt())
                 .build();

@@ -15,20 +15,12 @@ public class PortfolioProjectDto {
     private String projectName;
     private String description;
     private String status;
-    private String health;
+    private String health; // HEALTHY, AT_RISK, CRITICAL
+    private String organizationName;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
 
-    public static PortfolioProjectDto from(Project project) {
-
-        String health = "ON_TRACK";
-
-        if ("COMPLETED".equalsIgnoreCase(project.getStatus())) {
-            health = "COMPLETED";
-        } else if (project.getEndDate() != null &&
-                project.getEndDate().isBefore(LocalDateTime.now())) {
-            health = "DELAYED";
-        }
+    public static PortfolioProjectDto from(Project project, String health) {
 
         return PortfolioProjectDto.builder()
                 .id(project.getId())
@@ -36,6 +28,10 @@ public class PortfolioProjectDto {
                 .description(project.getDescription())
                 .status(project.getStatus())
                 .health(health)
+                .organizationName(
+                        project.getOrganization() != null
+                                ? project.getOrganization().getName()
+                                : null)
                 .startDate(project.getStartDate())
                 .endDate(project.getEndDate())
                 .build();

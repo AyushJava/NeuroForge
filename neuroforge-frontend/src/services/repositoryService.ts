@@ -42,7 +42,7 @@ export const repositoryService = {
   },
 
   getRepositoriesByProject: async (projectId: number) => {
-    return api.get<RepositoryConnectionResponse[]>(`/repositories/project/${projectId}`);
+    return api.get<{ data: RepositoryConnectionResponse[] }>(`/repositories/project/${projectId}`);
   },
 
   syncRepository: async (repositoryId: number) => {
@@ -50,10 +50,14 @@ export const repositoryService = {
   },
 
   getTaskCommits: async (taskKey: string) => {
-    return api.get<TaskCommitResponse[]>(`/repositories/tasks/${taskKey}/commits`);
+    return api.get<{ data: TaskCommitResponse[] }>(`/repositories/tasks/${taskKey}/commits`);
   },
 
   getTaskCommitsById: async (taskId: number) => {
-    return api.get<TaskCommitResponse[]>(`/repositories/tasks/${taskId}/commits-by-id`);
+    return api.get<{ success: boolean; message: string; data: TaskCommitResponse[] }>(`/repositories/tasks/${taskId}/commits-by-id`);
+  },
+
+  deleteRepository: async (repositoryId: number) => {
+    return api.delete(`/repositories/${repositoryId}`);
   },
 };

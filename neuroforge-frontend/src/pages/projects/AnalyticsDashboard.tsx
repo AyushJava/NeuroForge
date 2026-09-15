@@ -1,13 +1,15 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { 
-  BarChart3, TrendingUp, Clock, AlertTriangle, 
-  CheckCircle, Activity, Download, Loader2 
+import {
+  BarChart3, TrendingUp, Clock, AlertTriangle,
+  CheckCircle, Activity, Download, Loader2
 } from 'lucide-react';
 import Sidebar from '@/components/common/Sidebar';
 import DashboardNavbar from '@/components/common/DashboardNavbar';
-import analyticsService, { AnalyticsDashboardResponse, VelocityResponse, BurndownResponse, IssueTrendResponse } from '@/services/analyticsService';
+import analyticsService, { AnalyticsDashboardResponse, VelocityResponse, BurndownResponse, IssueTrendResponse, PortfolioHealthResponse } from '@/services/analyticsService';
+import { organizationService, Organization } from '@/services/organizationService';
+import { useAuth } from '@/context/AuthContext';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 function StatCard({ label, value, icon: Icon, color, bg, trend }: {
@@ -37,24 +39,44 @@ function StatCard({ label, value, icon: Icon, color, bg, trend }: {
 }
 
 export default function AnalyticsDashboard() {
+  const { user, role } = useAuth();
+
+  // For org-admin and project-manager, get organizations to filter analytics
+  const { data: orgsData } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: () => organizationService.getAll().then(r => r.data),
+    enabled: role === 'org-admin' || role === 'project-manager',
+  });
+  const orgs: Organization[] = orgsData?.data || [];
+  
+  // Use user's organizationId from JWT if available, otherwise fall back to most recent org
+  const activeOrg = user?.organizationId 
+    ? orgs.find(o => o.id === user.organizationId) || (orgs.length > 0 ? orgs[orgs.length - 1] : null)
+    : (orgs.length > 0 ? orgs[orgs.length - 1] : null);
+
+  // Use dashboard endpoint for all roles to get organization-scoped analytics
   const { data: dashboardData, isLoading } = useQuery({
-    queryKey: ['analytics-dashboard'],
-    queryFn: () => analyticsService.getDashboard().then(r => r.data),
+    queryKey: ['dashboard', activeOrg?.id],
+    queryFn: () => analyticsService.getDashboard(activeOrg?.id).then(r => r.data),
+    enabled: !activeOrg || !!activeOrg.id,
   });
 
   const { data: velocityData } = useQuery({
-    queryKey: ['velocity'],
-    queryFn: () => analyticsService.getVelocity().then(r => r.data),
+    queryKey: ['velocity', activeOrg?.id],
+    queryFn: () => analyticsService.getVelocity(activeOrg?.id).then(r => r.data),
+    enabled: !activeOrg || !!activeOrg.id,
   });
 
   const { data: burndownData } = useQuery({
-    queryKey: ['burndown'],
-    queryFn: () => analyticsService.getBurndown().then(r => r.data),
+    queryKey: ['burndown', activeOrg?.id],
+    queryFn: () => analyticsService.getBurndown(activeOrg?.id).then(r => r.data),
+    enabled: !activeOrg || !!activeOrg.id,
   });
 
   const { data: issueTrendData } = useQuery({
-    queryKey: ['issue-trend'],
-    queryFn: () => analyticsService.getIssueTrend().then(r => r.data),
+    queryKey: ['issue-trend', activeOrg?.id],
+    queryFn: () => analyticsService.getIssueTrend(activeOrg?.id).then(r => r.data),
+    enabled: !activeOrg || !!activeOrg.id,
   });
 
   const stats: AnalyticsDashboardResponse | undefined = dashboardData;
@@ -254,14 +276,7 @@ export default function AnalyticsDashboard() {
           {/* Quick Actions */}
           <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Link 
-                href="/project-manager/quality-trends"
-                className="flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-white/5 transition-colors"
-              >
-                <BarChart3 className="w-5 h-5 text-blue-400" />
-                <span className="text-white">View Quality Trends</span>
-              </Link>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Link 
                 href="/project-manager/portfolio"
                 className="flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-white/5 transition-colors"
@@ -269,6 +284,15 @@ export default function AnalyticsDashboard() {
                 <TrendingUp className="w-5 h-5 text-emerald-400" />
                 <span className="text-white">Portfolio Health</span>
               </Link>
+              {role === 'project-manager' && (
+                <Link 
+                  href="/project-manager/quality-trends"
+                  className="flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-white/5 transition-colors"
+                >
+                  <Activity className="w-5 h-5 text-blue-400" />
+                  <span className="text-white">View Quality Trends</span>
+                </Link>
+              )}
               <button 
                 onClick={async () => {
                   try {

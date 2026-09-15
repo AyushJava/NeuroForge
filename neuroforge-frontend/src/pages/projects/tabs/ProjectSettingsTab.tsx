@@ -48,6 +48,8 @@ export default function ProjectSettingsTab({ project }: Props) {
             { label: 'Name',         value: project.projectName },
             { label: 'Status',       value: project.status },
             { label: 'Organization', value: project.organizationName || '—' },
+            { label: 'Methodology',  value: project.methodology || '—' },
+            { label: 'Tech Stack',   value: project.techStack || '—' },
             { label: 'Start Date',   value: formatDate(project.startDate) },
             { label: 'End Date',     value: formatDate(project.endDate) },
             { label: 'Created',      value: formatDate(project.createdAt) },

@@ -1,5 +1,7 @@
 package com.neuroforge.backend.pipeline.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.neuroforge.backend.organization.entity.Organization;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -27,4 +29,9 @@ public class Pipeline {
 
     @Column(nullable = false)
     private Boolean active;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id", nullable = true)
+    @JsonIgnore
+    private Organization organization;
 }

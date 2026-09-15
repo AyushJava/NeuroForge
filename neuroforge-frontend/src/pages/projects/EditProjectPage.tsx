@@ -7,7 +7,7 @@ import { projectService } from '@/services/projectService';
 import { useAuth } from '@/context/AuthContext';
 import Sidebar from '@/components/common/Sidebar';
 import DashboardNavbar from '@/components/common/DashboardNavbar';
-import ProjectForm, { ProjectFormValues } from '@/components/projects/ProjectForm';
+import ProjectWizard, { ProjectFormValues } from '@/components/projects/ProjectWizard';
 import { useToast } from '@/hooks/use-toast';
 
 export default function EditProjectPage() {
@@ -35,6 +35,8 @@ export default function EditProjectPage() {
         status: formData.status,
         startDate: formData.startDate || undefined,
         endDate: formData.endDate || undefined,
+        methodology: formData.methodology,
+        techStack: formData.techStack,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -77,7 +79,7 @@ export default function EditProjectPage() {
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
               ) : project ? (
-                <ProjectForm
+                <ProjectWizard
                   isEdit
                   defaultValues={{
                     projectName: project.projectName,
@@ -85,9 +87,11 @@ export default function EditProjectPage() {
                     status: project.status,
                     startDate: toDateInput(project.startDate),
                     endDate: toDateInput(project.endDate),
+                    methodology: project.methodology || '',
+                    techStack: project.techStack || '',
                     organizationId: project.organizationId || 0,
                   }}
-                  onSubmit={async (data) => { await mutation.mutateAsync(data); }}
+                  onSubmit={async (data: ProjectFormValues) => { await mutation.mutateAsync(data); }}
                   isLoading={mutation.isPending}
                 />
               ) : (

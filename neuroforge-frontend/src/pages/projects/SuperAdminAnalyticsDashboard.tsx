@@ -49,8 +49,8 @@ export default function SuperAdminAnalyticsDashboard() {
   });
 
   const { data: velocityData, isLoading: velocityLoading } = useQuery({
-    queryKey: ['super-admin-velocity'],
-    queryFn: () => analyticsService.getVelocity().then(r => r.data),
+    queryKey: ['super-admin-velocity', selectedOrgId],
+    queryFn: () => analyticsService.getVelocity(selectedOrgId ?? undefined).then(r => r.data),
   });
 
   const orgs: Organization[] = Array.isArray(orgsData?.data) ? orgsData.data : [];
@@ -60,25 +60,26 @@ export default function SuperAdminAnalyticsDashboard() {
 
   const isLoading = orgsLoading || dashboardLoading || portfolioLoading || velocityLoading;
 
-  const handleExportReport = () => {
-    if (dashboard) {
-      const reportData = {
-        generatedAt: new Date().toISOString(),
-        generatedBy: user?.name || 'Super Admin',
-        dashboard: dashboard,
-        portfolio: portfolio,
-        velocity: velocity,
-        organizations: orgs.map(o => ({ id: o.id, name: o.name })),
-      };
-      const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `super-admin-analytics-report-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+  const handleExportReport = async () => {
+    try {
+      const response = await fetch('http://localhost:8081/api/analytics/reports/dashboard/pdf', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `super-admin-analytics-report-${new Date().toISOString().split('T')[0]}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Failed to export PDF:', error);
     }
   };
 

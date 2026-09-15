@@ -27,7 +27,7 @@ public class SprintController {
 
     @PostMapping
     @Operation(summary = "Create Sprint")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<SprintDto>> createSprint(
             @Valid @RequestBody CreateSprintRequest request) {
         return ResponseEntity.ok(sprintService.createSprint(request));
@@ -35,7 +35,7 @@ public class SprintController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update Sprint")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<SprintDto>> updateSprint(
             @PathVariable Long id,
             @Valid @RequestBody UpdateSprintRequest request) {
@@ -44,7 +44,7 @@ public class SprintController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete Sprint")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deleteSprint(
             @PathVariable Long id) {
         return ResponseEntity.ok(sprintService.deleteSprint(id));
@@ -76,14 +76,14 @@ public class SprintController {
 
     @PostMapping("/{id}/start")
     @Operation(summary = "Start Sprint")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<SprintDto>> startSprint(@PathVariable Long id) {
         return ResponseEntity.ok(sprintService.startSprint(id));
     }
 
     @PostMapping("/{id}/complete")
     @Operation(summary = "Complete Sprint")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<SprintDto>> completeSprint(@PathVariable Long id) {
         return ResponseEntity.ok(sprintService.completeSprint(id));
     }

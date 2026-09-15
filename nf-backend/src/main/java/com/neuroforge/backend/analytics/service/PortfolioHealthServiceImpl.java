@@ -123,25 +123,25 @@ public class PortfolioHealthServiceImpl implements PortfolioHealthService {
 
             List<ProjectHealthSummary> projectSummaries = new ArrayList<>();
 
+            // Get organization-wide task metrics instead of per-team
+            long orgTotalTasks = taskRepository.countByOrganizationId(organizationId);
+            long orgCompletedTasks = taskRepository.countByOrganizationIdAndStatus(organizationId, "DONE");
+            Integer orgTotalStoryPoints = taskRepository.getTotalStoryPointsByOrganization(organizationId);
+            Integer orgCompletedStoryPoints = taskRepository.getStoryPointsByOrganizationAndStatus(organizationId, "DONE");
+
+            log.info("Organization {} metrics: totalTasks={}, completedTasks={}, totalStoryPoints={}, completedStoryPoints={}",
+                    organizationId, orgTotalTasks, orgCompletedTasks, orgTotalStoryPoints, orgCompletedStoryPoints);
+
             for (Team team : validTeams) {
                 if (team == null || team.getId() == null) {
                     continue;
                 }
 
-                // Since Sprint doesn't have direct team relationship in NeuroForge,
-                // we'll use task metrics only for portfolio health
-                long teamTotalTasks = 0;
-                long teamCompletedTasks = 0;
-                int teamTotalStoryPoints = 0;
-                int teamCompletedStoryPoints = 0;
-
-                // Get all tasks for this team's projects (simplified approach)
-                // In a real implementation, you'd need to get projects for the team first
-                // For now, we'll use 0 as placeholder since the relationship doesn't exist
-                teamTotalTasks = 0;
-                teamCompletedTasks = 0;
-                teamTotalStoryPoints = 0;
-                teamCompletedStoryPoints = 0;
+                // Use organization-wide metrics for each team/project summary
+                long teamTotalTasks = orgTotalTasks;
+                long teamCompletedTasks = orgCompletedTasks;
+                int teamTotalStoryPoints = orgTotalStoryPoints != null ? orgTotalStoryPoints : 0;
+                int teamCompletedStoryPoints = orgCompletedStoryPoints != null ? orgCompletedStoryPoints : 0;
 
                 int activeSprints = 0;
                 int completedSprints = 0;

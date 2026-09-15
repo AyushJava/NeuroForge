@@ -19,6 +19,9 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     /** Count projects belonging to an organisation (for stats). */
     long countByOrganizationId(Long organizationId);
 
+    /** Count projects by status and organization (for dashboard stats). */
+    long countByStatusAndOrganizationId(String status, Long organizationId);
+
     // ── JOIN FETCH queries so ProjectDto.from() can access project.getOrganization()
     // ── safely even when open-in-view is disabled. ────────────────────────────────
 
@@ -30,4 +33,16 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 
     @Query("SELECT p FROM Project p LEFT JOIN FETCH p.organization WHERE p.organization.id = :orgId")
     List<Project> findByOrganizationIdWithOrganization(@Param("orgId") Long orgId);
+
+    /** Find active projects (not archived or completed) for health snapshots */
+    List<Project> findByStatusNotIn(List<String> statuses);
+
+    /** Find projects assigned to a user (via project membership) */
+    @Query("SELECT DISTINCT p FROM Project p " +
+           "LEFT JOIN FETCH p.organization " +
+           "JOIN p.members pm " +
+           "JOIN pm.teamMember tm " +
+           "JOIN tm.user u " +
+           "WHERE u.id = :userId")
+    List<Project> findAssignedProjectsByUserId(@Param("userId") Long userId);
 }
