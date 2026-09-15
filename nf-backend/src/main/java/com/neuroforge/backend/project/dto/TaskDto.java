@@ -18,6 +18,9 @@ public class TaskDto {
 
     private Long id;
 
+    // Module 7: Task key for commit linking (e.g., NF-123)
+    private String taskKey;
+
     private String title;
 
     private String description;
@@ -72,6 +75,7 @@ public class TaskDto {
 
         return TaskDto.builder()
                 .id(task.getId())
+                .taskKey(task.getTaskKey())
                 .title(task.getTitle())
                 .description(task.getDescription())
                 .priority(task.getPriority())

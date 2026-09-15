@@ -6,4 +6,5 @@ import lombok.Data;
 public class RunPipelineRequest {
 
     private Long pipelineId;
+    private Long orgId;
 }

@@ -142,7 +142,10 @@ export default function SprintDashboardPage() {
 
           {/* Back Button */}
           <button
-            onClick={() => setLocation(`/project-manager/projects/${projectId}`)}
+            onClick={() => {
+              const basePath = role === 'org-admin' ? '/org-admin' : '/project-manager';
+              setLocation(`${basePath}/projects/${projectId}`);
+            }}
             className="flex items-center gap-2 text-muted-foreground hover:text-white text-sm mb-6 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

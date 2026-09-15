@@ -218,11 +218,16 @@ public class CodeReviewService {
     }
 
     @Transactional(readOnly = true)
-    public List<QualityTrendResponse> getQualityTrendsForAllDevelopers() {
+    public List<QualityTrendResponse> getQualityTrendsForAllDevelopers(Long organizationId) {
         Map<Long, List<CodeReview>> reviewsByDeveloper = codeReviewRepository.findAll().stream()
                 .filter(review -> review.getRequestedBy() != null)
                 .filter(review -> review.getRequestedBy().getRole() != null)
                 .filter(review -> review.getRequestedBy().getRole().equals("ROLE_DEVELOPER"))
+                .filter(review -> organizationId == null || 
+                    (review.getTask() != null && 
+                     review.getTask().getProject() != null && 
+                     review.getTask().getProject().getOrganization() != null && 
+                     review.getTask().getProject().getOrganization().getId().equals(organizationId)))
                 .collect(Collectors.groupingBy(review -> review.getRequestedBy().getId()));
 
         return reviewsByDeveloper.entrySet().stream()

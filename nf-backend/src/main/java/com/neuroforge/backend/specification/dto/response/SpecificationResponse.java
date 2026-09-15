@@ -23,6 +23,10 @@ public class SpecificationResponse {
 
     private SpecificationStatus status;
 
+    private Long organizationId;
+
+    private UUID projectId;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

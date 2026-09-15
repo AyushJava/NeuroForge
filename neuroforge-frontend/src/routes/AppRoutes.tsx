@@ -101,8 +101,6 @@ export default function AppRoutes() {
       <Route path="/org-admin/organizations/:id">{guard(OrganizationDetailPage, 'org-admin')}</Route>
       <Route path="/org-admin/organizations">{guard(OrganizationListPage, 'org-admin')}</Route>
       <Route path="/org-admin/portfolio">{guard(PortfolioDashboard, 'org-admin')}</Route>
-      <Route path="/org-admin/projects/new">{guard(CreateProjectPage, 'org-admin')}</Route>
-      <Route path="/org-admin/projects/:id/edit">{guard(EditProjectPage, 'org-admin')}</Route>
       <Route path="/org-admin/projects/:id">{guard(ProjectDetailPage, 'org-admin')}</Route>
       <Route path="/org-admin/projects">{guard(ProjectListPage, 'org-admin')}</Route>
       {/* Module 5 - Sprint Dashboard */}

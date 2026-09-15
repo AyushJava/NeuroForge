@@ -58,6 +58,15 @@ export interface ReleaseHistoryResponse {
 
 export interface RunPipelineRequest {
   pipelineId: number;
+  orgId?: number;
+}
+
+export interface Pipeline {
+  id: number;
+  name: string;
+  repositoryName: string;
+  defaultBranch: string;
+  active: boolean;
 }
 
 export interface CreateReleaseRequest {
@@ -80,13 +89,15 @@ export const pipelineService = {
     return data.data;
   },
 
-  async getPipelineHistory(): Promise<PipelineHistoryResponse[]> {
-    const { data } = await api.get('/pipelines/history');
+  async getPipelineHistory(orgId?: number): Promise<PipelineHistoryResponse[]> {
+    const params = orgId ? { orgId } : {};
+    const { data } = await api.get('/pipelines/history', { params });
     return data.data;
   },
 
-  async getPipelineMetrics(): Promise<PipelineMetricsResponse> {
-    const { data } = await api.get('/pipelines/metrics');
+  async getPipelineMetrics(orgId?: number): Promise<PipelineMetricsResponse> {
+    const params = orgId ? { orgId } : {};
+    const { data } = await api.get('/pipelines/metrics', { params });
     return data.data;
   },
 
@@ -118,13 +129,20 @@ export const pipelineService = {
     return data.data;
   },
 
-  async getReleaseHistory(): Promise<ReleaseHistoryResponse[]> {
-    const { data } = await api.get('/pipelines/releases');
+  async getReleaseHistory(orgId?: number): Promise<ReleaseHistoryResponse[]> {
+    const params = orgId ? { orgId } : {};
+    const { data } = await api.get('/pipelines/releases', { params });
     return data.data;
   },
 
   async publishRelease(releaseId: number): Promise<ReleaseResponse> {
     const { data } = await api.post(`/pipelines/release/${releaseId}/publish`);
+    return data.data;
+  },
+
+  async getActivePipeline(orgId?: number): Promise<Pipeline> {
+    const params = orgId ? { orgId } : {};
+    const { data } = await api.get('/pipelines/active', { params });
     return data.data;
   },
 };

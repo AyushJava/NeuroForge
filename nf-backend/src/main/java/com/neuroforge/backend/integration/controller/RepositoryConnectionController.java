@@ -66,4 +66,12 @@ public class RepositoryConnectionController {
 
         return repositoryConnectionService.getTaskCommitsByTaskId(taskId);
     }
+
+    @DeleteMapping("/{repositoryId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ORG_ADMIN', 'ROLE_PROJECT_MANAGER')")
+    public ApiResponse<Void> deleteRepository(
+            @PathVariable Long repositoryId) {
+
+        return repositoryConnectionService.deleteRepository(repositoryId);
+    }
 }

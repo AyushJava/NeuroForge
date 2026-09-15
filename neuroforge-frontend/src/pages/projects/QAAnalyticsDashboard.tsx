@@ -6,6 +6,7 @@ import { Bug, ShieldCheck, AlertTriangle, CheckCircle, Clock, Download, Loader2 
 import Sidebar from '@/components/common/Sidebar';
 import DashboardNavbar from '@/components/common/DashboardNavbar';
 import analyticsService from '@/services/analyticsService';
+import { organizationService, Organization } from '@/services/organizationService';
 import { useAuth } from '@/context/AuthContext';
 
 interface StatCardProps {
@@ -29,22 +30,34 @@ function StatCard({ label, value, icon: Icon, color, bg }: StatCardProps) {
 }
 
 export default function QAAnalyticsDashboard() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [selectedSprint, setSelectedSprint] = useState<number | null>(null);
 
+  // Get the most recent organization to filter analytics
+  const { data: orgsData } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: () => organizationService.getAll().then(r => r.data),
+    enabled: role === 'org-admin',
+  });
+  const orgs: Organization[] = orgsData?.data || [];
+  const activeOrg = orgs.length > 0 ? orgs[orgs.length - 1] : null;
+
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
-    queryKey: ['qa-dashboard'],
-    queryFn: () => analyticsService.getDashboard().then(r => r.data),
+    queryKey: ['qa-dashboard', activeOrg?.id],
+    queryFn: () => analyticsService.getDashboard(activeOrg?.id).then(r => r.data),
+    enabled: role !== 'org-admin' || !!activeOrg?.id,
   });
 
   const { data: issueTrendData, isLoading: issueTrendLoading } = useQuery({
-    queryKey: ['qa-issue-trend'],
-    queryFn: () => analyticsService.getIssueTrend().then(r => r.data),
+    queryKey: ['qa-issue-trend', activeOrg?.id],
+    queryFn: () => analyticsService.getIssueTrend(activeOrg?.id).then(r => r.data),
+    enabled: role !== 'org-admin' || !!activeOrg?.id,
   });
 
   const { data: taskDistributionData, isLoading: taskDistributionLoading } = useQuery({
-    queryKey: ['qa-task-distribution'],
-    queryFn: () => analyticsService.getTaskDistribution().then(r => r.data),
+    queryKey: ['qa-task-distribution', activeOrg?.id],
+    queryFn: () => analyticsService.getTaskDistribution(activeOrg?.id).then(r => r.data),
+    enabled: role !== 'org-admin' || !!activeOrg?.id,
   });
 
   const dashboard = dashboardData;

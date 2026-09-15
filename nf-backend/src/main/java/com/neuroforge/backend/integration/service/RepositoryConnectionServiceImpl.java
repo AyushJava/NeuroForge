@@ -83,45 +83,50 @@ public class RepositoryConnectionServiceImpl implements RepositoryConnectionServ
 
     @Override
     public ApiResponse<RepositorySyncResponse> syncRepository(Long repositoryId) {
+        try {
+            RepositoryConnection repository = repositoryConnectionRepository
+                    .findById(repositoryId)
+                    .orElseThrow(() -> AppException.notFound("Repository not found"));
 
-        RepositoryConnection repository = repositoryConnectionRepository
-                .findById(repositoryId)
-                .orElseThrow(() -> AppException.notFound("Repository not found"));
+            String repoUrl = repository.getRepositoryUrl();
 
-        String repoUrl = repository.getRepositoryUrl();
+            String path = repoUrl
+                    .replace("https://github.com/", "")
+                    .replace(".git", "");
 
-        String path = repoUrl
-                .replace("https://github.com/", "")
-                .replace(".git", "");
+            // Sync commits
+            String apiUrl = "https://api.github.com/repos/" + path + "/commits";
 
-        // Sync commits
-        String apiUrl = "https://api.github.com/repos/" + path + "/commits";
+            String decryptedToken;
+            try {
+                decryptedToken = tokenEncryptionService.decrypt(repository.getAccessToken());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to decrypt GitHub token. The token may have been encrypted with a different encryption key. Please delete and reconnect the repository.", e);
+            }
 
-        String decryptedToken = tokenEncryptionService.decrypt(repository.getAccessToken());
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(decryptedToken);
+            headers.setAccept(List.of(MediaType.APPLICATION_JSON));
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(decryptedToken);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<List> githubResponse = restTemplate.exchange(
+                    apiUrl,
+                    HttpMethod.GET,
+                    entity,
+                    List.class);
 
-        ResponseEntity<List> githubResponse = restTemplate.exchange(
-                apiUrl,
-                HttpMethod.GET,
-                entity,
-                List.class);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> commits = (List<Map<String, Object>>) githubResponse.getBody();
+            repository.setLastSyncTime(LocalDateTime.now());
+            repositoryConnectionRepository.save(repository);
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> commits = (List<Map<String, Object>>) githubResponse.getBody();
-        repository.setLastSyncTime(LocalDateTime.now());
-        repositoryConnectionRepository.save(repository);
-
-        RepositorySyncResponse response = RepositorySyncResponse.builder()
-                .id(repository.getId())
-                .repositoryUrl(repository.getRepositoryUrl())
-                .lastSyncedAt(repository.getLastSyncTime())
-                .message("Repository synced successfully")
-                .build();
+            RepositorySyncResponse response = RepositorySyncResponse.builder()
+                    .id(repository.getId())
+                    .repositoryUrl(repository.getRepositoryUrl())
+                    .lastSyncedAt(repository.getLastSyncTime())
+                    .message("Repository synced successfully")
+                    .build();
 
         if (commits != null) {
 
@@ -153,7 +158,7 @@ public class RepositoryConnectionServiceImpl implements RepositoryConnectionServ
 
                 String message = commitCache.getCommitMessage();
 
-                Pattern pattern = Pattern.compile("NF-\\d+");
+                Pattern pattern = Pattern.compile("NF-\\d+-\\d+|NF-\\d+");
                 Matcher matcher = pattern.matcher(message);
 
                 while (matcher.find()) {
@@ -268,6 +273,9 @@ public class RepositoryConnectionServiceImpl implements RepositoryConnectionServ
         return ApiResponse.ok(
                 "Repository synced successfully",
                 response);
+        } catch (Exception e) {
+            throw new RuntimeException("Sync failed: " + e.getMessage(), e);
+        }
     }
 
     @Override
@@ -358,5 +366,24 @@ public class RepositoryConnectionServiceImpl implements RepositoryConnectionServ
         return ApiResponse.ok(
                 "Task commits fetched successfully",
                 commits);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<Void> deleteRepository(Long repositoryId) {
+        RepositoryConnection repository = repositoryConnectionRepository
+                .findById(repositoryId)
+                .orElseThrow(() -> AppException.notFound("Repository not found"));
+
+        // Delete associated data in correct order to respect foreign key constraints
+        taskCommitLinkRepository.deleteByRepositoryConnectionId(repositoryId);
+        commitCacheRepository.deleteByRepositoryConnectionId(repositoryId);
+        branchRepository.deleteByRepositoryConnectionId(repositoryId);
+        pullRequestRepository.deleteByRepositoryConnectionId(repositoryId);
+
+        // Delete the repository connection
+        repositoryConnectionRepository.delete(repository);
+
+        return ApiResponse.ok("Repository deleted successfully", null);
     }
 }

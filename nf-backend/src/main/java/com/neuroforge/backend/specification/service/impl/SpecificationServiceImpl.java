@@ -1,5 +1,9 @@
 package com.neuroforge.backend.specification.service.impl;
 
+import com.neuroforge.backend.exception.AppException;
+import com.neuroforge.backend.organization.entity.Organization;
+import com.neuroforge.backend.organization.repository.OrganizationRepository;
+import com.neuroforge.backend.security.SecurityUtils;
 import com.neuroforge.backend.specification.dto.request.CreateSpecificationRequest;
 import com.neuroforge.backend.specification.dto.request.SaveAISpecificationRequest;
 import com.neuroforge.backend.specification.dto.request.UpdateSpecificationRequest;
@@ -18,6 +22,9 @@ import com.neuroforge.backend.specification.mapper.SpecificationMapper;
 import com.neuroforge.backend.specification.repository.AISpecificationRepository;
 import com.neuroforge.backend.specification.repository.SpecificationRepository;
 import com.neuroforge.backend.specification.service.SpecificationService;
+import com.neuroforge.backend.notification.service.NotificationService;
+import com.neuroforge.backend.entity.User;
+import com.neuroforge.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -39,6 +46,9 @@ public class SpecificationServiceImpl implements SpecificationService {
     private final SpecificationRepository specificationRepository;
     private final SpecificationMapper specificationMapper;
     private final AISpecificationRepository aiSpecificationRepository;
+    private final OrganizationRepository organizationRepository;
+    private final NotificationService notificationService;
+    private final UserRepository userRepository;
 
     @Override
     public SpecificationResponse createSpecification(CreateSpecificationRequest request) {
@@ -51,6 +61,22 @@ public class SpecificationServiceImpl implements SpecificationService {
         validateCreationRequest(request);
 
         Specification specification = buildSpecification(title);
+
+        // Set organization if provided
+        if (request.getOrganizationId() != null) {
+            Organization organization = organizationRepository.findById(request.getOrganizationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
+            specification.setOrganization(organization);
+        }
+
+        // Set project if provided
+        if (request.getProjectId() != null) {
+            try {
+                specification.setProjectId(UUID.fromString(request.getProjectId()));
+            } catch (Exception e) {
+                log.warn("Invalid projectId format: {}", request.getProjectId());
+            }
+        }
 
         SpecificationVersion version = buildManualVersion(
                 specification,
@@ -66,12 +92,21 @@ public class SpecificationServiceImpl implements SpecificationService {
 
         specification = specificationRepository.save(specification);
 
-        log.info("Specification created successfully | id={} | key={} | version={} | status={}",
+        log.info("Specification created successfully | id={} | key={} | version={} | status={} | orgId={}",
                 specification.getId(),
                 specification.getSpecificationKey(),
                 specification.getCurrentVersion(),
-                specification.getStatus()
+                specification.getStatus(),
+                specification.getOrganization() != null ? specification.getOrganization().getId() : null
         );
+
+        // Notify organization members about new specification
+        if (specification.getOrganization() != null) {
+            notifyOrganizationMembers(specification.getOrganization().getId(), 
+                "New Specification Created", 
+                "Specification \"" + specification.getTitle() + "\" has been created and is ready for review.",
+                "SPECIFICATION");
+        }
 
         return specificationMapper.toResponse(specification);
     }
@@ -81,6 +116,15 @@ public class SpecificationServiceImpl implements SpecificationService {
     public SpecificationResponse getSpecification(UUID specificationId) {
 
         Specification specification = getSpecificationOrThrow(specificationId);
+
+        // Validate organization membership (IDOR protection)
+        if (!SecurityUtils.isSuperAdmin() && specification.getOrganization() != null) {
+            Long userOrgId = SecurityUtils.getCurrentUserOrganizationId()
+                    .orElseThrow(() -> AppException.forbidden("User has no organization"));
+            if (!specification.getOrganization().getId().equals(userOrgId)) {
+                throw AppException.forbidden("Access denied: specification belongs to a different organization");
+            }
+        }
 
         log.debug("Specification retrieved | id={} | version={} | status={}",
                 specification.getId(),
@@ -96,46 +140,86 @@ public class SpecificationServiceImpl implements SpecificationService {
     public Page<SpecificationResponse> getAllSpecifications(
             String title,
             SpecificationStatus status,
+            Long orgId,
             Pageable pageable) {
+        log.debug("Fetching all specifications | title={} | status={} | orgId={}", title, status, orgId);
 
         Page<Specification> specifications;
-
-        if (title != null && !title.isBlank() && status != null) {
-
-            specifications = specificationRepository
-                    .findByDeletedFalseAndTitleContainingIgnoreCaseAndStatus(
-                            title.trim(),
-                            status,
-                            pageable
-                    );
-
-        } else if (title != null && !title.isBlank()) {
-
-            specifications = specificationRepository
-                    .findByDeletedFalseAndTitleContainingIgnoreCase(
-                            title.trim(),
-                            pageable
-                    );
-
-        } else if (status != null) {
-
-            specifications = specificationRepository
-                    .findByDeletedFalseAndStatus(
-                            status,
-                            pageable
-                    );
-
+        
+        if (orgId != null) {
+            // Organization-scoped queries
+            if (title != null && !title.isBlank() && status != null) {
+                specifications = specificationRepository
+                        .findByDeletedFalseAndTitleContainingIgnoreCaseAndStatusAndOrganizationId(
+                                title.trim(),
+                                status,
+                                orgId,
+                                pageable
+                        );
+            } else if (title != null && !title.isBlank()) {
+                specifications = specificationRepository
+                        .findByDeletedFalseAndTitleContainingIgnoreCaseAndOrganizationId(
+                                title.trim(),
+                                orgId,
+                                pageable
+                        );
+            } else if (status != null) {
+                specifications = specificationRepository
+                        .findByDeletedFalseAndStatusAndOrganizationId(
+                                status,
+                                orgId,
+                                pageable
+                        );
+            } else {
+                specifications = specificationRepository
+                        .findByDeletedFalseAndOrganizationId(orgId, pageable);
+            }
         } else {
-
-            specifications = specificationRepository
-                    .findByDeletedFalse(pageable);
-
+            // No organization filter (existing behavior)
+            if (title != null && !title.isBlank() && status != null) {
+                specifications = specificationRepository
+                        .findByDeletedFalseAndTitleContainingIgnoreCaseAndStatus(
+                                title.trim(),
+                                status,
+                                pageable
+                        );
+            } else if (title != null && !title.isBlank()) {
+                specifications = specificationRepository
+                        .findByDeletedFalseAndTitleContainingIgnoreCase(
+                                title.trim(),
+                                pageable
+                        );
+            } else if (status != null) {
+                specifications = specificationRepository
+                        .findByDeletedFalseAndStatus(
+                                status,
+                                pageable
+                        );
+            } else {
+                specifications = specificationRepository
+                        .findByDeletedFalse(pageable);
+            }
         }
 
-        log.debug("Specification search completed | totalElements={} | totalPages={}",
-                specifications.getTotalElements(),
-                specifications.getTotalPages()
-        );
+        return specifications.map(specificationMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<SpecificationResponse> getApprovedSpecificationsByProject(Long projectId, Pageable pageable) {
+        // Since Specification.projectId is UUID and Project.id is Long, we cannot directly query by project ID
+        // We'll filter by organization ID and APPROVED status as a workaround
+        Long userOrgId = SecurityUtils.getCurrentUserOrganizationId()
+                .orElseThrow(() -> AppException.forbidden("User has no organization"));
+
+        log.debug("Fetching approved specifications for organization | orgId={}", userOrgId);
+
+        Page<Specification> specifications = specificationRepository
+                .findByDeletedFalseAndStatusAndOrganizationId(
+                        SpecificationStatus.APPROVED, 
+                        userOrgId, 
+                        pageable
+                );
 
         return specifications.map(specificationMapper::toResponse);
     }
@@ -146,6 +230,15 @@ public class SpecificationServiceImpl implements SpecificationService {
             UpdateSpecificationRequest request) {
 
         Specification specification = getSpecificationOrThrow(id);
+
+        // Validate organization membership
+        if (!SecurityUtils.isSuperAdmin() && specification.getOrganization() != null) {
+            Long userOrgId = SecurityUtils.getCurrentUserOrganizationId()
+                    .orElseThrow(() -> AppException.forbidden("User has no organization"));
+            if (!specification.getOrganization().getId().equals(userOrgId)) {
+                throw AppException.forbidden("Access denied: specification belongs to a different organization");
+            }
+        }
 
         int nextVersion = specification.getCurrentVersion() + 1;
 
@@ -183,6 +276,15 @@ public class SpecificationServiceImpl implements SpecificationService {
     public void deleteSpecification(UUID id) {
 
         Specification specification = getSpecificationOrThrow(id);
+
+        // Validate organization membership
+        if (!SecurityUtils.isSuperAdmin() && specification.getOrganization() != null) {
+            Long userOrgId = SecurityUtils.getCurrentUserOrganizationId()
+                    .orElseThrow(() -> AppException.forbidden("User has no organization"));
+            if (!specification.getOrganization().getId().equals(userOrgId)) {
+                throw AppException.forbidden("Access denied: specification belongs to a different organization");
+            }
+        }
 
         specification.setDeleted(true);
 
@@ -326,6 +428,28 @@ public class SpecificationServiceImpl implements SpecificationService {
         // Build specification
         Specification specification = buildSpecification(title);
 
+        // Set organization if provided
+        if (request.getOrganizationId() != null) {
+            try {
+                Organization organization = organizationRepository.findById(request.getOrganizationId())
+                        .orElse(null);
+                if (organization != null) {
+                    specification.setOrganization(organization);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to set organization for specification: {}", e.getMessage());
+            }
+        }
+
+        // Set project if provided
+        if (request.getProjectId() != null) {
+            try {
+                specification.setProjectId(UUID.fromString(request.getProjectId()));
+            } catch (Exception e) {
+                log.warn("Invalid projectId format: {}", request.getProjectId());
+            }
+        }
+
         // Convert lists to strings for storage
         String userStoriesStr = request.getUserStories() != null ? String.join("\n", request.getUserStories()) : null;
         String acceptanceCriteriaStr = request.getAcceptanceCriteria() != null ? String.join("\n", request.getAcceptanceCriteria()) : null;
@@ -363,11 +487,12 @@ public class SpecificationServiceImpl implements SpecificationService {
             }
         }
 
-        log.info("AI-generated specification saved successfully | id={} | key={} | version={} | status={}",
+        log.info("AI-generated specification saved successfully | id={} | key={} | version={} | status={} | orgId={}",
                 specification.getId(),
                 specification.getSpecificationKey(),
                 specification.getCurrentVersion(),
-                specification.getStatus()
+                specification.getStatus(),
+                specification.getOrganization() != null ? specification.getOrganization().getId() : null
         );
 
         return specificationMapper.toResponse(specification);
@@ -396,6 +521,17 @@ public class SpecificationServiceImpl implements SpecificationService {
                 .generatedBy("AI")
                 .generatedAt(LocalDateTime.now())
                 .build();
+    }
+
+    private void notifyOrganizationMembers(Long organizationId, String title, String message, String type) {
+        try {
+            List<User> orgMembers = userRepository.findByOrganizationId(organizationId);
+            for (User member : orgMembers) {
+                notificationService.create(member, title, message, type);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to notify organization members: {}", e.getMessage());
+        }
     }
 
 }

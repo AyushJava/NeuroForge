@@ -17,19 +17,31 @@ public class DashboardServiceImpl implements DashboardService {
     private final TaskRepository taskRepository;
 
     @Override
-    public ApiResponse<DashboardDto> getDashboard() {
+    public ApiResponse<DashboardDto> getDashboard(Long orgId) {
+        
+        long totalProjects = orgId != null 
+            ? projectRepository.countByOrganizationId(orgId)
+            : projectRepository.count();
 
-        long totalProjects = projectRepository.count();
+        long activeProjects = orgId != null
+            ? projectRepository.countByStatusAndOrganizationId("ACTIVE", orgId)
+            : projectRepository.countByStatus("ACTIVE");
 
-        long activeProjects = projectRepository.countByStatus("ACTIVE");
+        long completedProjects = orgId != null
+            ? projectRepository.countByStatusAndOrganizationId("COMPLETED", orgId)
+            : projectRepository.countByStatus("COMPLETED");
 
-        long completedProjects = projectRepository.countByStatus("COMPLETED");
+        long totalSprints = orgId != null
+            ? sprintRepository.countByOrganizationId(orgId)
+            : sprintRepository.count();
 
-        long totalSprints = sprintRepository.count();
+        long totalTasks = orgId != null
+            ? taskRepository.countByOrganizationId(orgId)
+            : taskRepository.count();
 
-        long totalTasks = taskRepository.count();
-
-        long completedTasks = taskRepository.countByStatus("DONE");
+        long completedTasks = orgId != null
+            ? taskRepository.countByOrganizationIdAndStatus(orgId, "DONE")
+            : taskRepository.countByStatus("DONE");
 
         long pendingTasks = totalTasks - completedTasks;
 

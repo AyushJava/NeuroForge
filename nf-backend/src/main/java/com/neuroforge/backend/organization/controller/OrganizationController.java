@@ -32,6 +32,12 @@ public class OrganizationController {
         return ResponseEntity.ok(orgService.getAllOrganizations(user));
     }
 
+    @GetMapping("/public")
+    @Operation(summary = "List organizations for registration (public)")
+    public ResponseEntity<ApiResponse<List<OrganizationDto>>> listPublic() {
+        return ResponseEntity.ok(orgService.getPublicOrganizations());
+    }
+
     @PostMapping
     @Operation(summary = "Create organization")
     public ResponseEntity<ApiResponse<OrganizationDto>> create(

@@ -7,6 +7,7 @@ import DashboardNavbar from '@/components/common/DashboardNavbar';
 import { organizationService, Organization, TeamMember, OrgStatsDto } from '@/services/organizationService';
 import api from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/AuthContext';
 
 interface UserDto { id: number; name: string; email: string; role: string; enabled?: boolean; approvalStatus?: string; }
 
@@ -28,23 +29,27 @@ export default function OrgAdminDashboard() {
   const [showPendingUsers, setShowPendingUsers] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: orgsData, isLoading: orgsLoading } = useQuery({
     queryKey: ['organizations'],
     queryFn: () => organizationService.getAll().then(r => r.data),
   });
   const orgs: Organization[] = orgsData?.data || [];
-  const firstOrg = orgs[0];
+  // Use user's organizationId from JWT if available, otherwise fall back to most recent org
+  const activeOrg = user?.organizationId 
+    ? orgs.find(o => o.id === user.organizationId) || (orgs.length > 0 ? orgs[orgs.length - 1] : null)
+    : (orgs.length > 0 ? orgs[orgs.length - 1] : null);
 
   const { data: statsData, isLoading: statsLoading } = useQuery({
-    queryKey: ['org-stats', firstOrg?.id],
-    queryFn: () => organizationService.getStats(firstOrg!.id).then(r => r.data),
-    enabled: !!firstOrg?.id,
+    queryKey: ['org-stats', activeOrg?.id],
+    queryFn: () => organizationService.getStats(activeOrg!.id).then(r => r.data),
+    enabled: !!activeOrg?.id,
   });
   const { data: membersData, isLoading: membersLoading } = useQuery({
-    queryKey: ['org-members', firstOrg?.id],
-    queryFn: () => organizationService.getMembers(firstOrg!.id).then(r => r.data),
-    enabled: !!firstOrg?.id,
+    queryKey: ['org-members', activeOrg?.id],
+    queryFn: () => organizationService.getMembers(activeOrg!.id).then(r => r.data),
+    enabled: !!activeOrg?.id,
   });
   const { data: pendingUsersData, isLoading: pendingUsersLoading } = useQuery({
     queryKey: ['pending-users'],
@@ -92,7 +97,7 @@ export default function OrgAdminDashboard() {
             <div className="flex items-center justify-center py-24">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
-          ) : !firstOrg ? (
+          ) : !activeOrg ? (
             <div className="bg-card border border-dashed border-border rounded-xl p-10 text-center">
               <Building2 className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm font-medium text-white mb-1">No organization found</p>
@@ -108,10 +113,10 @@ export default function OrgAdminDashboard() {
                   <Building2 className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">{firstOrg.name}</h3>
-                  <p className="text-xs text-muted-foreground">/{firstOrg.slug} · {firstOrg.plan} Plan</p>
+                  <h3 className="text-lg font-semibold text-white">{activeOrg.name}</h3>
+                  <p className="text-xs text-muted-foreground">/{activeOrg.slug} · {activeOrg.plan} Plan</p>
                 </div>
-                <Link href={`/org-admin/organizations/${firstOrg.id}`} className="ml-auto text-xs text-primary hover:text-blue-400 transition-colors">
+                <Link href={`/org-admin/organizations/${activeOrg.id}`} className="ml-auto text-xs text-primary hover:text-blue-400 transition-colors">
                   Manage →
                 </Link>
               </div>
@@ -134,7 +139,7 @@ export default function OrgAdminDashboard() {
                       <Clock className="w-4 h-4" />
                       Pending Approvals
                     </button>
-                    <Link href={`/org-admin/organizations/${firstOrg.id}`} className="text-xs text-primary hover:text-blue-400 transition-colors">
+                    <Link href={`/org-admin/organizations/${activeOrg.id}`} className="text-xs text-primary hover:text-blue-400 transition-colors">
                       View All →
                     </Link>
                   </div>

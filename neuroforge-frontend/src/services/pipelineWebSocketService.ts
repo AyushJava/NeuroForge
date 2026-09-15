@@ -11,10 +11,11 @@ class PipelineWebSocketService {
   private stompClient: Client | null = null;
   private subscriptions: Map<string, any> = new Map();
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 2;
   private reconnectDelay = 3000;
   private currentProjectId?: number;
   private currentToken?: string;
+  private isConnecting = false;
 
   connect(token: string, projectId?: number): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -23,41 +24,68 @@ class PipelineWebSocketService {
         return;
       }
 
+      if (this.isConnecting) {
+        resolve();
+        return;
+      }
+
+      this.isConnecting = true;
       this.currentProjectId = projectId;
       this.currentToken = token;
 
       // WebSocket needs direct connection to backend, not through proxy
       const url = 'http://localhost:8081/pipeline-ws';
-      
+
       const socket = new SockJS(url);
-      
+
       this.stompClient = new Client({
         webSocketFactory: () => socket,
         connectHeaders: {
           Authorization: `Bearer ${token}`,
         },
         debug: (str) => {
-          if (import.meta.env.DEV) {
-            console.log('[PipelineWebSocket]', str);
-          }
+          // Disable debug logging to reduce console noise
         },
         reconnectDelay: this.reconnectDelay,
         onConnect: () => {
           console.log('[PipelineWebSocket] Connected');
           this.reconnectAttempts = 0;
+          this.isConnecting = false;
           resolve();
         },
         onStompError: (frame) => {
           console.error('[PipelineWebSocket] STOMP error:', frame);
+          this.isConnecting = false;
           reject(frame);
         },
         onWebSocketClose: () => {
-          console.log('[PipelineWebSocket] Disconnected');
-          this.handleReconnect();
+          this.isConnecting = false;
+          // Only attempt reconnection if we were previously connected
+          if (this.reconnectAttempts > 0) {
+            this.handleReconnect();
+          }
         },
       });
 
+      // Set a timeout to fail gracefully if connection doesn't establish
+      const timeout = setTimeout(() => {
+        if (!this.stompClient?.connected) {
+          console.warn('[PipelineWebSocket] Connection timeout - WebSocket may not be available');
+          this.isConnecting = false;
+          resolve(); // Resolve anyway to not block the UI
+        }
+      }, 5000);
+
       this.stompClient.activate();
+
+      // Clear timeout if connection succeeds
+      this.stompClient.onConnect = () => {
+        clearTimeout(timeout);
+        console.log('[PipelineWebSocket] Connected');
+        this.reconnectAttempts = 0;
+        this.isConnecting = false;
+        resolve();
+      };
     });
   }
 

@@ -9,9 +9,10 @@ interface ProjectCardProps {
   project: Project;
   basePath: string;
   progress?: number;
+  showViewDetails?: boolean;
 }
 
-export default function ProjectCard({ project, basePath }: ProjectCardProps) {
+export default function ProjectCard({ project, basePath, showViewDetails = true }: ProjectCardProps) {
   const formatDate = (dt?: string) =>
     dt ? new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
 
@@ -62,12 +63,14 @@ export default function ProjectCard({ project, basePath }: ProjectCardProps) {
       </div>
 
       {/* Action */}
-      <Link
-        href={`${basePath}/${project.id}`}
-        className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-blue-400 transition-colors"
-      >
-        View Details <ArrowRight className="w-3.5 h-3.5" />
-      </Link>
+      {showViewDetails && (
+        <Link
+          href={`${basePath}/${project.id}`}
+          className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-blue-400 transition-colors"
+        >
+          View Details <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      )}
     </div>
   );
 }

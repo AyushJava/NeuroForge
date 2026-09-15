@@ -16,6 +16,8 @@ import com.neuroforge.backend.pipeline.repository.ReleaseRepository;
 import com.neuroforge.backend.pipeline.repository.ReleaseTaskRepository;
 import lombok.RequiredArgsConstructor;
 
+import com.neuroforge.backend.organization.entity.Organization;
+import com.neuroforge.backend.organization.repository.OrganizationRepository;
 import com.neuroforge.backend.project.entity.Task;
 import com.neuroforge.backend.project.repository.TaskRepository;
 
@@ -25,8 +27,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,15 +44,30 @@ public class PipelineServiceImpl implements PipelineService {
     private final ReleaseTaskRepository releaseTaskRepository;
     private final TaskRepository taskRepository;
     private final GroqService groqService;
+    private final OrganizationRepository organizationRepository;
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public ApiResponse<PipelineRunResponse> runPipeline(RunPipelineRequest request) {
+        if (!hasRole("ROLE_PROJECT_MANAGER")) {
+            throw AppException.forbidden("Only Project Managers can trigger pipeline runs");
+        }
+
         Pipeline pipeline = pipelineRepository.findById(request.getPipelineId())
                 .orElseThrow(() -> AppException.notFound("Pipeline not found"));
 
+        // Use the orgId from request if provided, otherwise use pipeline's organization
+        Long orgId = request.getOrgId();
+        com.neuroforge.backend.organization.entity.Organization org = null;
+        if (orgId != null) {
+            org = organizationRepository.findById(orgId).orElse(null);
+        } else {
+            org = pipeline.getOrganization();
+        }
+
         PipelineRun run = PipelineRun.builder()
                 .pipeline(pipeline)
+                .organization(org)
                 .status("RUNNING")
                 .triggeredBy(getCurrentUserEmail())
                 .startedAt(LocalDateTime.now())
@@ -65,7 +84,13 @@ public class PipelineServiceImpl implements PipelineService {
                 .build();
 
         // Call simulator after transaction commits
-        pipelineSimulator.simulate(run.getId());
+        Long runId = run.getId();
+        TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                pipelineSimulator.simulate(runId);
+            }
+        });
 
         return ApiResponse.ok(
                 "Pipeline started successfully",
@@ -96,12 +121,18 @@ public class PipelineServiceImpl implements PipelineService {
     @Override
     @Transactional
     public ApiResponse<ReleaseResponse> createRelease(CreateReleaseRequest request) {
-        Release release = Release.builder()
+        Release.ReleaseBuilder releaseBuilder = Release.builder()
                 .version(request.getVersion())
                 .status("DRAFT")
-                .createdAt(LocalDateTime.now())
-                .build();
+                .createdAt(LocalDateTime.now());
 
+        if (request.getOrganizationId() != null) {
+            Organization organization = organizationRepository.findById(request.getOrganizationId())
+                    .orElseThrow(() -> AppException.notFound("Organization not found"));
+            releaseBuilder.organization(organization);
+        }
+
+        Release release = releaseBuilder.build();
         release = releaseRepository.save(release);
         if (request.getTaskIds() != null) {
             for (Long taskId : request.getTaskIds()) {
@@ -173,18 +204,38 @@ public class PipelineServiceImpl implements PipelineService {
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse<List<PipelineHistoryResponse>> getPipelineHistory() {
-        List<PipelineHistoryResponse> history = pipelineRunRepository
-                .findAll()
-                .stream()
-                .map(run -> PipelineHistoryResponse.builder()
-                        .runId(run.getId())
-                        .pipelineName(run.getPipeline().getName())
-                        .status(run.getStatus())
-                        .startedAt(run.getStartedAt())
-                        .completedAt(run.getCompletedAt())
-                        .build())
-                .toList();
+    public ApiResponse<List<PipelineHistoryResponse>> getPipelineHistory(Long orgId) {
+        List<PipelineHistoryResponse> history;
+
+        if (orgId != null) {
+            history = pipelineRunRepository
+                    .findAll()
+                    .stream()
+                    .filter(run -> run.getOrganization() == null ||
+                                   run.getOrganization().getId().equals(orgId))
+                    .map(run -> PipelineHistoryResponse.builder()
+                            .runId(run.getId())
+                            .pipelineName(run.getPipeline().getName())
+                            .status(run.getStatus())
+                            .startedAt(run.getStartedAt())
+                            .completedAt(run.getCompletedAt())
+                            .build())
+                    .sorted((a, b) -> b.getStartedAt().compareTo(a.getStartedAt()))
+                    .toList();
+        } else {
+            history = pipelineRunRepository
+                    .findAll()
+                    .stream()
+                    .map(run -> PipelineHistoryResponse.builder()
+                            .runId(run.getId())
+                            .pipelineName(run.getPipeline().getName())
+                            .status(run.getStatus())
+                            .startedAt(run.getStartedAt())
+                            .completedAt(run.getCompletedAt())
+                            .build())
+                    .sorted((a, b) -> b.getStartedAt().compareTo(a.getStartedAt()))
+                    .toList();
+        }
 
         return ApiResponse.ok(
                 "Pipeline history fetched successfully",
@@ -272,15 +323,22 @@ public class PipelineServiceImpl implements PipelineService {
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse<PipelineMetricsResponse> getPipelineMetrics() {
-        long total = pipelineRunRepository.count();
-        long success = pipelineRunRepository.countByStatus("SUCCESS");
-        long failed = pipelineRunRepository.countByStatus("FAILED");
-        long waiting = pipelineRunRepository.countByStatus("WAITING_FOR_APPROVAL");
+    public ApiResponse<PipelineMetricsResponse> getPipelineMetrics(Long orgId) {
+        List<PipelineRun> runs = pipelineRunRepository.findAll();
+
+        if (orgId != null) {
+            runs = runs.stream()
+                    .filter(run -> run.getOrganization() == null ||
+                                   run.getOrganization().getId().equals(orgId))
+                    .toList();
+        }
+
+        long total = runs.size();
+        long success = runs.stream().filter(run -> "SUCCESS".equals(run.getStatus())).count();
+        long failed = runs.stream().filter(run -> "FAILED".equals(run.getStatus())).count();
+        long waiting = runs.stream().filter(run -> "WAITING_FOR_APPROVAL".equals(run.getStatus())).count();
 
         double successRate = total == 0 ? 0 : (success * 100.0) / total;
-
-        List<PipelineRun> runs = pipelineRunRepository.findAll();
 
         double averageDuration = 0;
         long fastest = 0;
@@ -352,8 +410,16 @@ public class PipelineServiceImpl implements PipelineService {
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse<List<ReleaseHistoryResponse>> getReleaseHistory() {
-        List<ReleaseHistoryResponse> releases = releaseRepository.findAll()
+    public ApiResponse<List<ReleaseHistoryResponse>> getReleaseHistory(Long orgId) {
+        List<Release> releases;
+        
+        if (orgId != null) {
+            releases = releaseRepository.findByOrganizationId(orgId);
+        } else {
+            releases = releaseRepository.findAll();
+        }
+        
+        List<ReleaseHistoryResponse> response = releases
                         .stream()
                         .map(release -> ReleaseHistoryResponse.builder()
                                         .id(release.getId())
@@ -367,7 +433,7 @@ public class PipelineServiceImpl implements PipelineService {
 
         return ApiResponse.ok(
                 "Release history fetched successfully",
-                releases);
+                response);
     }
 
     @Override
@@ -413,5 +479,28 @@ public class PipelineServiceImpl implements PipelineService {
                                 .anyMatch(authority -> authority.getAuthority().equals(role));
         }
         return false;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<Pipeline> getActivePipeline(Long orgId) {
+        if (orgId != null) {
+            Optional<Pipeline> pipeline = pipelineRepository.findByOrganizationIdAndActiveTrue(orgId);
+            if (pipeline.isPresent()) {
+                return ApiResponse.ok("Active pipeline fetched successfully", pipeline.get());
+            }
+            // Fallback to global pipelines (pipelines without organization)
+            Pipeline globalPipeline = pipelineRepository.findAll().stream()
+                    .filter(p -> p.getOrganization() == null && p.getActive())
+                    .findFirst()
+                    .orElseThrow(() -> AppException.notFound("No active pipeline found for this organization"));
+            return ApiResponse.ok("Active pipeline fetched successfully", globalPipeline);
+        }
+        // If no orgId, return first active pipeline
+        Pipeline pipeline = pipelineRepository.findAll().stream()
+                .filter(Pipeline::getActive)
+                .findFirst()
+                .orElseThrow(() -> AppException.notFound("No active pipeline found"));
+        return ApiResponse.ok("Active pipeline fetched successfully", pipeline);
     }
 }

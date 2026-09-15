@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLocation } from 'wouter';
+import { useLocation, useSearchParams } from 'wouter';
 import { useMutation } from '@tanstack/react-query';
 import { Sparkles, ArrowLeft, Save, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import { Link } from 'wouter';
@@ -11,7 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function AIGeneratorPage() {
   const [, setLocation] = useLocation();
-  const { role } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { role, user } = useAuth();
   const { toast } = useToast();
 
   const [prompt, setPrompt] = useState('');
@@ -20,7 +21,10 @@ export default function AIGeneratorPage() {
   const [title, setTitle] = useState('');
   const [aiSpecificationId, setAiSpecificationId] = useState<string | null>(null);
 
-  const basePath = role === 'org-admin' ? '/org-admin/projects' : '/project-manager/projects';
+  const projectId = searchParams.get('projectId');
+  const basePath = role === 'org-admin' 
+    ? `/org-admin/projects/${projectId}?tab=requirements` 
+    : `/project-manager/projects/${projectId}?tab=requirements`;
 
   const generateMutation = useMutation({
     mutationFn: (data: GenerateSpecificationRequest) =>
@@ -59,6 +63,7 @@ export default function AIGeneratorPage() {
       functionalRequirements: generatedResponse?.functionalRequirements || [],
       nonFunctionalRequirements: generatedResponse?.nonFunctionalRequirements || [],
       aiSpecificationId: aiSpecificationId || undefined,
+      organizationId: user?.organizationId,
     };
 
     saveMutation.mutate(saveRequest);
@@ -121,7 +126,7 @@ export default function AIGeneratorPage() {
         <main className="flex-1 p-8 overflow-y-auto">
           <div className="max-w-4xl mx-auto">
             <Link href={basePath} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-white mb-6 transition-colors w-fit">
-              <ArrowLeft className="w-4 h-4" /> Back to Specifications
+              <ArrowLeft className="w-4 h-4" /> Back to Project
             </Link>
 
             <div className="bg-card border border-border rounded-2xl p-8 shadow-sm mb-6">

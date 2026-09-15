@@ -92,6 +92,8 @@ export default function ProjectOverviewTab({ project }: Props) {
           {[
             { label: 'Status', value: <HealthBadge status={project.status} size="sm" /> },
             { label: 'Organization', value: project.organizationName || '—' },
+            { label: 'Methodology', value: project.methodology || '—' },
+            { label: 'Tech Stack', value: project.techStack || '—' },
             { label: 'Start Date', value: formatDate(project.startDate) },
             { label: 'End Date', value: formatDate(project.endDate) },
             { label: 'Team Members', value: `${stats?.totalMembers ?? 0}` },

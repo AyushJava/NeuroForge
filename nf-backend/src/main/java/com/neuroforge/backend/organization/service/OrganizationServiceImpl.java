@@ -59,8 +59,21 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .build();
         org = orgRepo.save(org);
 
-        // Super Admin does NOT automatically become a member of the organization.
-        // The first Org Admin will be added through the invitation flow.
+        // If the user is registering as a project manager or org-admin, automatically add them as a member
+        // This is needed for users who register directly with an organization (not via invitation)
+        if ("ROLE_ORG_ADMIN".equals(currentUser.getRole()) || "ROLE_PROJECT_MANAGER".equals(currentUser.getRole())) {
+            boolean alreadyMember = memberRepo.findByUserIdAndOrganizationId(currentUser.getId(), org.getId()).isPresent();
+            if (!alreadyMember) {
+                OrgRole orgRole = "ROLE_ORG_ADMIN".equals(currentUser.getRole()) ? OrgRole.ORG_ADMIN : OrgRole.PROJECT_MANAGER;
+                TeamMember teamMember = TeamMember.builder()
+                        .user(currentUser)
+                        .organization(org)
+                        .role(orgRole)
+                        .build();
+                memberRepo.save(teamMember);
+                log.info("Created TeamMember for user {} in org {} during organization creation", currentUser.getId(), org.getId());
+            }
+        }
 
         return ApiResponse.ok("Organization created", OrganizationDto.from(org));
     }
@@ -75,9 +88,23 @@ public class OrganizationServiceImpl implements OrganizationService {
         } else {
             List<Long> orgIds = memberRepo.findByUserId(currentUser.getId())
                     .stream().map(m -> m.getOrganization().getId()).collect(Collectors.toList());
+
+            // Only include organizationId if user has no TeamMember records (for users who registered but not yet approved)
+            if (orgIds.isEmpty() && currentUser.getOrganizationId() != null) {
+                orgIds.add(currentUser.getOrganizationId());
+            }
+
             orgs = orgRepo.findAllById(orgIds);
         }
         return ApiResponse.ok("Organizations retrieved",
+                orgs.stream().map(OrganizationDto::from).collect(Collectors.toList()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<List<OrganizationDto>> getPublicOrganizations() {
+        List<Organization> orgs = orgRepo.findAll();
+        return ApiResponse.ok("Public organizations retrieved",
                 orgs.stream().map(OrganizationDto::from).collect(Collectors.toList()));
     }
 

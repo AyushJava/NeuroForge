@@ -1,5 +1,6 @@
 package com.neuroforge.backend.project.dto;
 
+import com.neuroforge.backend.validation.NotSameDay;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -7,6 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
+@NotSameDay(startDateField = "startDate", endDateField = "endDate", message = "Start Date and End Date cannot be the same")
 public class CreateSprintRequest {
 
     @NotBlank

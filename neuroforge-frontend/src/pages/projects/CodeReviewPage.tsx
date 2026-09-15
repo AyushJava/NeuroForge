@@ -39,6 +39,16 @@ export default function CodeReviewPage({ projectId: propProjectId, isTab = false
   const projectId = propProjectId || (urlProjectId ? Number(urlProjectId) : undefined);
   const { user, role } = useAuth();
   const isProjectManager = role === 'project-manager';
+  const isDeveloper = role === 'developer';
+
+  // Prevent QA users from accessing code review
+  if (role === 'qa') {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">You don't have permission to access code reviews</div>
+      </div>
+    );
+  }
 
   if (!projectId) {
     return (
@@ -240,6 +250,7 @@ export default function CodeReviewPage({ projectId: propProjectId, isTab = false
       .join('\n\n');
 
     return {
+      reviewId: '',
       overallScore: avgScore,
       summary: combinedSummary,
       issues: uniqueIssues,

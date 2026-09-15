@@ -5,6 +5,8 @@ import { FolderKanban, CheckSquare, GitBranch, Activity, Loader2, TrendingUp } f
 import Sidebar from '@/components/common/Sidebar';
 import DashboardNavbar from '@/components/common/DashboardNavbar';
 import { projectService, Project } from '@/services/projectService';
+import { organizationService, Organization } from '@/services/organizationService';
+import { useAuth } from '@/context/AuthContext';
 import HealthBadge from '@/components/projects/HealthBadge';
 import api from '@/services/api';
 
@@ -29,13 +31,38 @@ function StatCard({ label, value, icon: Icon, color, bg }: {
 }
 
 export default function ProjectManagerDashboard() {
-  const { data: projectsData, isLoading: projectsLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: () => projectService.getAll().then(r => r.data),
+  const { user } = useAuth();
+  
+  // Get organizations to filter projects by active organization
+  const { data: orgsData } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: () => organizationService.getAll().then(r => r.data),
   });
+  const orgs: Organization[] = orgsData?.data || [];
+  
+  // Use user's organizationId from JWT if available, otherwise fall back to most recent org
+  const activeOrg = user?.organizationId 
+    ? orgs.find(o => o.id === user.organizationId) || (orgs.length > 0 ? orgs[orgs.length - 1] : null)
+    : (orgs.length > 0 ? orgs[orgs.length - 1] : null);
+
+  const { data: projectsData, isLoading: projectsLoading } = useQuery({
+    queryKey: ['projects', activeOrg?.id],
+    queryFn: () => {
+      if (activeOrg?.id) {
+        return projectService.getByOrganization(activeOrg.id).then(r => r.data);
+      }
+      return projectService.getAll().then(r => r.data);
+    },
+    enabled: !activeOrg || !!activeOrg.id,
+  });
+  
   const { data: statsData, isLoading: statsLoading } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: () => api.get<any>('/dashboard').then(r => r.data),
+    queryKey: ['dashboard-stats', activeOrg?.id],
+    queryFn: () => {
+      const params = activeOrg?.id ? { orgId: activeOrg.id } : {};
+      return api.get<any>('/dashboard', { params }).then(r => r.data);
+    },
+    enabled: !activeOrg || !!activeOrg.id,
   });
 
   const projects: Project[] = projectsData?.data || [];

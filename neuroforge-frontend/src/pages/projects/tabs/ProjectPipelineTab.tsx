@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, RotateCcw, X, CheckCircle, XCircle, Clock, AlertTriangle, FileText, Plus, Edit, Eye, Loader2 } from 'lucide-react';
-import { pipelineService, PipelineRunResponse, PipelineStageResponse, PipelineHistoryResponse, PipelineMetricsResponse, ReleaseResponse, ReleaseHistoryResponse, CreateReleaseRequest, UpdateReleaseNotesRequest } from '@/services/pipelineService';
+import { pipelineService, PipelineRunResponse, PipelineStageResponse, PipelineHistoryResponse, PipelineMetricsResponse, ReleaseResponse, ReleaseHistoryResponse, CreateReleaseRequest, UpdateReleaseNotesRequest, Pipeline } from '@/services/pipelineService';
 import { pipelineWebSocketService, PipelineStageUpdate } from '@/services/pipelineWebSocketService';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -48,19 +48,29 @@ export default function ProjectPipelineTab({ projectId }: Props) {
   const [editedNotes, setEditedNotes] = useState('');
 
   // Queries
+  const { data: allProjects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => projectService.getAll().then((r: any) => r.data.data),
+  });
+
+  const projectData = Array.isArray(allProjects) ? allProjects?.find((p: any) => p.id === projectId) : undefined;
+
   const { data: history } = useQuery({
-    queryKey: ['pipeline-history'],
-    queryFn: () => pipelineService.getPipelineHistory(),
+    queryKey: ['pipeline-history', projectData?.organizationId],
+    queryFn: () => pipelineService.getPipelineHistory(projectData?.organizationId),
+    enabled: !!projectData,
   });
 
   const { data: metrics } = useQuery({
-    queryKey: ['pipeline-metrics'],
-    queryFn: () => pipelineService.getPipelineMetrics(),
+    queryKey: ['pipeline-metrics', projectData?.organizationId],
+    queryFn: () => pipelineService.getPipelineMetrics(projectData?.organizationId),
+    enabled: !!projectData,
   });
 
   const { data: releases } = useQuery({
-    queryKey: ['release-history'],
-    queryFn: () => pipelineService.getReleaseHistory(),
+    queryKey: ['release-history', projectData?.organizationId],
+    queryFn: () => pipelineService.getReleaseHistory(projectData?.organizationId),
+    enabled: !!projectData,
   });
 
   const { data: tasksResponse } = useQuery({
@@ -69,9 +79,20 @@ export default function ProjectPipelineTab({ projectId }: Props) {
   });
   const tasks = tasksResponse?.data?.data as Task[] || [];
 
+  const { data: activePipeline } = useQuery({
+    queryKey: ['active-pipeline', projectData?.organizationId],
+    queryFn: () => pipelineService.getActivePipeline(projectData?.organizationId),
+    enabled: !!projectData,
+  });
+
   // Mutations
   const runPipelineMutation = useMutation({
-    mutationFn: () => pipelineService.runPipeline({ pipelineId: 1 }),
+    mutationFn: () => {
+      if (!activePipeline) {
+        throw new Error('No active pipeline found');
+      }
+      return pipelineService.runPipeline({ pipelineId: activePipeline.id, orgId: projectData?.organizationId });
+    },
     onSuccess: (data) => {
       setActiveRunId(data.runId);
       toast({ title: 'Pipeline started' });
@@ -185,6 +206,13 @@ export default function ProjectPipelineTab({ projectId }: Props) {
 
   const activeRun = history?.find(r => r.runId === activeRunId);
 
+  // Calculate sequential run number for the organization (1-based)
+  const getRunNumber = (runId: number) => {
+    if (!history) return 1;
+    const index = history.findIndex(r => r.runId === runId);
+    return index >= 0 ? history.length - index : 1;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -210,7 +238,7 @@ export default function ProjectPipelineTab({ projectId }: Props) {
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-lg font-semibold text-white">Pipeline #{activeRun.runId}</h3>
+              <h3 className="text-lg font-semibold text-white">Pipeline #{getRunNumber(activeRun.runId)}</h3>
               <p className={`text-sm ${getPipelineStatusColor(activeRun.status)}`}>
                 Status: {activeRun.status}
               </p>
@@ -301,7 +329,7 @@ export default function ProjectPipelineTab({ projectId }: Props) {
               onClick={() => setActiveRunId(run.runId)}
             >
               <div>
-                <span className="font-medium text-white">Run #{run.runId}</span>
+                <span className="font-medium text-white">Run #{getRunNumber(run.runId)}</span>
                 <span className="ml-3 text-sm text-slate-400">{new Date(run.startedAt).toLocaleString()}</span>
               </div>
               <span className={`px-3 py-1 rounded-full text-sm ${getStageStatusColor(run.status)}`}>
@@ -361,7 +389,7 @@ export default function ProjectPipelineTab({ projectId }: Props) {
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  {release.status === 'DRAFT' && (
+                  {release.status === 'DRAFT' && isPM && (
                     <>
                       <button
                         onClick={() => generateNotesMutation.mutate(release.id)}
@@ -461,7 +489,11 @@ export default function ProjectPipelineTab({ projectId }: Props) {
                 <button
                   onClick={() => {
                     if (releaseVersion && selectedTaskIds.length > 0) {
-                      createReleaseMutation.mutate({ version: releaseVersion, taskIds: selectedTaskIds });
+                      createReleaseMutation.mutate({ 
+                        version: releaseVersion, 
+                        taskIds: selectedTaskIds,
+                        organizationId: projectData?.organizationId 
+                      });
                     }
                   }}
                   disabled={!releaseVersion || selectedTaskIds.length === 0}

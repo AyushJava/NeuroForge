@@ -93,6 +93,7 @@ export interface InviteMemberRequest {
 export const organizationService = {
   // Organizations
   getAll: () => api.get<any>('/organizations'),
+  getPublic: () => api.get<any>('/organizations/public'),
   getById: (id: number) => api.get<any>(`/organizations/${id}`),
   create: (data: CreateOrganizationRequest) => api.post<any>('/organizations', data),
   update: (id: number, data: UpdateOrganizationRequest) => api.put<any>(`/organizations/${id}`, data),

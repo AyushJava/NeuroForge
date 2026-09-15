@@ -19,6 +19,10 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     List<Task> findByAssignedToId(Long projectMemberId);
 
+    // Find tasks by project and assigned user (for developer filtering)
+    @Query("SELECT t FROM Task t WHERE t.project.id = :projectId AND t.assignedTo IS NOT NULL AND t.assignedTo.teamMember.user.id = :userId")
+    List<Task> findByProjectIdAndAssignedToUserId(@Param("projectId") Long projectId, @Param("userId") Long userId);
+
     List<Task> findByProjectIdAndSprintId(Long projectId, Long sprintId);
 
     // Module 7: Task key for commit linking
@@ -33,6 +37,10 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     // Task Board
     List<Task> findByProjectIdAndStatus(Long projectId, String status);
+
+    // Task Board for specific user (developers only see their assigned tasks)
+    @Query("SELECT t FROM Task t WHERE t.project.id = :projectId AND t.status = :status AND t.assignedTo IS NOT NULL AND t.assignedTo.teamMember.user.id = :userId")
+    List<Task> findByProjectIdAndStatusAndAssignedToUserId(@Param("projectId") Long projectId, @Param("status") String status, @Param("userId") Long userId);
 
     // Module 5: Additional query methods
     List<Task> findByStatus(String status);
@@ -73,6 +81,9 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     @Query("SELECT COUNT(t) FROM Task t WHERE t.project.organization.id = :organizationId AND t.status = :status")
     long countByOrganizationIdAndStatus(@Param("organizationId") Long organizationId, @Param("status") String status);
 
+    @Query("SELECT t FROM Task t WHERE t.project.organization.id = :organizationId AND t.status = :status")
+    List<Task> findByOrganizationIdAndStatus(@Param("organizationId") Long organizationId, @Param("status") String status);
+
     @Query("SELECT SUM(t.storyPoints) FROM Task t WHERE t.project.organization.id = :organizationId")
     Integer getTotalStoryPointsByOrganization(@Param("organizationId") Long organizationId);
 
@@ -82,8 +93,9 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     /**
      * Unassign all tasks assigned to a specific user by setting assignedTo to null.
      * Called when deleting a user to remove their task assignments.
+     * The query joins through ProjectMember -> TeamMember -> User to find tasks assigned to the user.
      */
     @Modifying(clearAutomatically = true)
-    @Query("UPDATE Task t SET t.assignedTo = NULL WHERE t.assignedTo.id = :userId")
+    @Query("UPDATE Task t SET t.assignedTo = NULL WHERE t.assignedTo.teamMember.user.id = :userId")
     void unassignTasksByUserId(@Param("userId") Long userId);
 }

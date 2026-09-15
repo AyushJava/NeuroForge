@@ -19,6 +19,17 @@ public class SecurityUtils {
         return Optional.empty();
     }
 
+    public static Optional<com.neuroforge.backend.entity.User> getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            if (userDetails instanceof com.neuroforge.backend.entity.User) {
+                return Optional.of((com.neuroforge.backend.entity.User) userDetails);
+            }
+        }
+        return Optional.empty();
+    }
+
     public static Optional<String> getCurrentUserRole() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {

@@ -5,6 +5,6 @@ import com.neuroforge.backend.project.dto.DashboardDto;
 
 public interface DashboardService {
 
-    ApiResponse<DashboardDto> getDashboard();
+    ApiResponse<DashboardDto> getDashboard(Long orgId);
 
 }
