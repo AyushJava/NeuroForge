@@ -31,19 +31,10 @@ export default function HeroSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-4 leading-[1.1]"
+            className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-6 leading-[1.1]"
           >
             and DevOps Management System
           </motion.h2>
-
-          <motion.h3
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="text-2xl md:text-4xl font-semibold text-primary mb-6"
-          >
-            Group 2
-          </motion.h3>
 
           <motion.p
             initial={{ opacity: 0, y: 20 }}

@@ -10,4 +10,6 @@ public class CreateReleaseRequest {
     private String version;
 
     private List<Long> taskIds;
+
+    private Long organizationId;
 }

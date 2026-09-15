@@ -177,10 +177,12 @@ function TaskModal({ task, projectId, sprintOptions, memberOptions, onClose, rea
 }
 
 function TaskCommitsModal({ taskId, taskTitle, onClose }: { taskId: number; taskTitle: string; onClose: () => void }) {
-  const { data: commits, isLoading } = useQuery({
+  const { data: commitsData, isLoading } = useQuery({
     queryKey: ['task-commits', taskId],
-    queryFn: () => repositoryService.getTaskCommitsById(taskId).then(r => r.data.data),
+    queryFn: () => repositoryService.getTaskCommitsById(taskId).then(r => r.data),
   });
+
+  const commits = commitsData?.data || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -206,7 +208,7 @@ function TaskCommitsModal({ taskId, taskTitle, onClose }: { taskId: number; task
             </div>
           ) : (
             <div className="space-y-3">
-              {commits.map((commit) => (
+              {commits.map((commit: TaskCommitResponse) => (
                 <div key={commit.commitSha} className="bg-card border border-border rounded-lg p-4">
                   <div className="flex items-start justify-between mb-2">
                     <code className="text-xs text-primary font-mono">{commit.commitSha.substring(0, 7)}</code>
@@ -330,7 +332,12 @@ export default function ProjectTasksTab({ project }: Props) {
               {tasks.map(task => (
                 <tr key={task.id} className="hover:bg-white/5 transition-colors">
                   <td className="px-5 py-3.5">
-                    <p className="font-medium text-white">{task.title}</p>
+                    <div className="flex items-center gap-2">
+                      {task.taskKey && (
+                        <span className="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">{task.taskKey}</span>
+                      )}
+                      <p className="font-medium text-white">{task.title}</p>
+                    </div>
                     {task.description && <p className="text-xs text-muted-foreground truncate max-w-xs">{task.description}</p>}
                   </td>
                   <td className="px-5 py-3.5">

@@ -140,8 +140,9 @@ export const codeReviewService = {
   },
 
   // Get quality trends for all developers
-  getQualityTrendsForAllDevelopers: async (): Promise<QualityTrendResponse[]> => {
-    const response = await api.get<QualityTrendResponse[]>('/code-reviews/trends/all');
+  getQualityTrendsForAllDevelopers: async (orgId?: number): Promise<QualityTrendResponse[]> => {
+    const params = orgId ? { orgId } : {};
+    const response = await api.get<QualityTrendResponse[]>('/code-reviews/trends/all', { params });
     return response.data;
   },
 };

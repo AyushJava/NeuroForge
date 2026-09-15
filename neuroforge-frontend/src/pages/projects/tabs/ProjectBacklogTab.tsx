@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Loader2, Trash2, Edit2, History } from 'lucide-react';
+import { Plus, Search, Loader2, Trash2, Edit2, History, TrendingDown } from 'lucide-react';
 import { projectService, Task, Sprint, ProjectMember, Project, TaskStatusHistory } from '@/services/projectService';
 import { specificationService, Specification } from '@/services/specificationService';
 import { useAuth } from '@/context/AuthContext';
 import { canWriteTasks, canUpdateTasks, canViewModule5, canMoveTaskToDone } from '@/lib/roleUtils';
 import Modal from '@/components/common/Modal';
 import ConfirmDialog from '@/components/projects/ConfirmDialog';
+import SprintBurndownChart from '@/components/projects/SprintBurndownChart';
 import { useToast } from '@/hooks/use-toast';
 
 interface Props { project: Project }
@@ -43,11 +44,12 @@ interface TaskFormData {
   specificationVersionId?: string;
 }
 
-function TaskModal({ task, projectId, sprints, members, onClose }: {
+function TaskModal({ task, projectId, sprints, members, project, onClose }: {
   task?: Task;
   projectId: number;
   sprints: Sprint[];
   members: ProjectMember[];
+  project: Project;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -57,8 +59,9 @@ function TaskModal({ task, projectId, sprints, members, onClose }: {
   const canMoveToDone = canMoveTaskToDone(role);
 
   const { data: specsData } = useQuery({
-    queryKey: ['specifications'],
-    queryFn: () => specificationService.getAll().then((r: any) => r.data.data),
+    queryKey: ['specifications', project.organizationId],
+    queryFn: () => specificationService.getAll({ orgId: project.organizationId }).then((r: any) => r.data.data),
+    enabled: !!project.organizationId,
   });
   const specs = Array.isArray(specsData?.content) ? specsData.content : (Array.isArray(specsData) ? specsData : []);
 
@@ -342,6 +345,8 @@ export default function ProjectBacklogTab({ project }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   const [historyTask, setHistoryTask] = useState<Task | null>(null);
+  const [selectedSprint, setSelectedSprint] = useState<Sprint | null>(null);
+  const [showBurndown, setShowBurndown] = useState(false);
 
   const canWrite = canWriteTasks(role);
   const canUpdate = canUpdateTasks(role);
@@ -355,6 +360,12 @@ export default function ProjectBacklogTab({ project }: Props) {
   const { data: sprintsData } = useQuery({
     queryKey: ['project-sprints', project.id],
     queryFn: () => projectService.getSprintsByProject(project.id).then(r => r.data),
+  });
+
+  const { data: burndownData, isLoading: burndownLoading } = useQuery({
+    queryKey: ['sprint-burndown', selectedSprint?.id],
+    queryFn: () => projectService.getSprintBurndown(selectedSprint!.id).then(r => r.data),
+    enabled: !!selectedSprint && showBurndown,
   });
 
   const { data: membersData } = useQuery({
@@ -402,18 +413,38 @@ export default function ProjectBacklogTab({ project }: Props) {
             {role === 'client' ? 'View tasks for this project' : 'Manage tasks for this project'}
           </p>
         </div>
-        {canWrite && (
-          <button
-            onClick={() => {
-              setModalTask(null);
-              setIsModalOpen(true);
-            }}
-            className="flex items-center gap-2 bg-primary text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New Task
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {sprints.length > 0 && (
+            <select
+              className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-primary transition-all"
+              value={selectedSprint?.id || ''}
+              onChange={(e) => {
+                const sprint = sprints.find(s => s.id === Number(e.target.value));
+                if (sprint) {
+                  setSelectedSprint(sprint);
+                  setShowBurndown(true);
+                }
+              }}
+            >
+              <option value="">View Burndown...</option>
+              {sprints.map(s => (
+                <option key={s.id} value={s.id}>{s.sprintName}</option>
+              ))}
+            </select>
+          )}
+          {canWrite && (
+            <button
+              onClick={() => {
+                setModalTask(null);
+                setIsModalOpen(true);
+              }}
+              className="flex items-center gap-2 bg-primary text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New Task
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -603,6 +634,7 @@ export default function ProjectBacklogTab({ project }: Props) {
           projectId={project.id}
           sprints={sprints}
           members={members}
+          project={project}
           onClose={() => {
             setIsModalOpen(false);
             setModalTask(null);
@@ -634,6 +666,25 @@ export default function ProjectBacklogTab({ project }: Props) {
           <TaskHistoryModal
             task={historyTask}
             onClose={() => setHistoryTask(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Sprint Burndown Modal */}
+      <Modal
+        isOpen={showBurndown}
+        onClose={() => {
+          setShowBurndown(false);
+          setSelectedSprint(null);
+        }}
+        title="Sprint Burndown Chart"
+        size="lg"
+      >
+        {selectedSprint && (
+          <SprintBurndownChart
+            data={burndownData?.data || []}
+            isLoading={burndownLoading}
+            sprintName={selectedSprint.sprintName}
           />
         )}
       </Modal>

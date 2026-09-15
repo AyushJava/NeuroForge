@@ -75,11 +75,11 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private final DeploymentRecordRepository deploymentRecordRepository;
 
     @Override
-    public AnalyticsDashboardResponse getDashboard() {
-        // Role-based data filtering: Non-super-admin users only see their organization's data
-        Long currentOrgId = SecurityUtils.getCurrentUserOrganizationId().orElse(null);
+    public AnalyticsDashboardResponse getDashboard(Long orgId) {
+        // Use provided orgId if available, otherwise fall back to SecurityUtils
+        Long currentOrgId = orgId != null ? orgId : SecurityUtils.getCurrentUserOrganizationId().orElse(null);
         boolean isSuperAdmin = SecurityUtils.isSuperAdmin();
-        
+
         long totalTasks;
         long completedTasks;
         long inProgressTasks;
@@ -88,7 +88,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         long todoTasks;
         Integer totalStoryPoints;
         Integer completedStoryPoints;
-        
+
         if (isSuperAdmin || currentOrgId == null) {
             // Super admin sees all data
             totalTasks = taskRepository.count();
@@ -119,7 +119,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
         // Calculate average cycle time for the dashboard
         double averageCycleTimeHours = 0.0;
-        List<Task> doneTasks = taskRepository.findByStatus("DONE");
+        List<Task> doneTasks = currentOrgId != null ? taskRepository.findByOrganizationIdAndStatus(currentOrgId, "DONE") : taskRepository.findByStatus("DONE");
         long measuredCycleTimeTasks = 0;
         double totalCycleTimeMinutes = 0.0;
 
@@ -141,13 +141,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     continue;
                 }
 
-                if (startedAt == null && history.getNewStatus() == "IN_PROGRESS") {
+                // Track the most recent IN_PROGRESS timestamp
+                if ("IN_PROGRESS".equals(history.getNewStatus())) {
                     startedAt = history.getChangedAt();
-                } else if (startedAt != null && history.getNewStatus() == "DONE") {
-                    if (!history.getChangedAt().isBefore(startedAt)) {
-                        completedAt = history.getChangedAt();
-                        break;
-                    }
+                } else if ("DONE".equals(history.getNewStatus())) {
+                    completedAt = history.getChangedAt();
+                    break;
                 }
             }
 
@@ -163,6 +162,28 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             averageCycleTimeHours = Math.round(avgHours * 100.0) / 100.0;
         }
 
+        // Get issue trend data for the dashboard
+        IssueTrendResponse issueTrend = getIssueTrend(currentOrgId);
+        long totalIssues = 0;
+        long highIssues = 0;
+        long mediumIssues = 0;
+        long lowIssues = 0;
+        long infoIssues = 0;
+
+        if (issueTrend != null && issueTrend.getPoints() != null) {
+            for (IssueTrendPointResponse point : issueTrend.getPoints()) {
+                totalIssues += point.getTotalIssues() != null ? point.getTotalIssues() : 0;
+                highIssues += point.getHighIssues() != null ? point.getHighIssues() : 0;
+                mediumIssues += point.getMediumIssues() != null ? point.getMediumIssues() : 0;
+                lowIssues += point.getLowIssues() != null ? point.getLowIssues() : 0;
+                infoIssues += point.getInfoIssues() != null ? point.getInfoIssues() : 0;
+            }
+        }
+
+        // Get deployment metrics
+        DeploymentFrequencyResponse deploymentFreq = getDeploymentFrequency();
+        ChangeFailureRateResponse changeFailure = getChangeFailureRate();
+
         return AnalyticsDashboardResponse.builder()
                 .totalTasks(totalTasks)
                 .completedTasks(completedTasks)
@@ -174,6 +195,16 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 .completedStoryPoints(completedStoryPoints)
                 .completionPercentage(completionPercentage)
                 .averageCycleTimeHours(averageCycleTimeHours)
+                .totalIssues(totalIssues)
+                .highIssues(highIssues)
+                .mediumIssues(mediumIssues)
+                .lowIssues(lowIssues)
+                .infoIssues(infoIssues)
+                .successfulDeployments(deploymentFreq != null ? deploymentFreq.getTotalSuccessfulDeployments() : 0L)
+                .productionDeploymentAttempts(changeFailure != null ? changeFailure.getTotalProductionDeploymentAttempts() : 0L)
+                .failedProductionDeployments(changeFailure != null ? changeFailure.getFailedProductionDeployments() : 0L)
+                .deploymentFrequencyPerDay(deploymentFreq != null ? deploymentFreq.getDeploymentsPerDay() : 0.0)
+                .changeFailureRate(changeFailure != null ? changeFailure.getChangeFailureRate() : 0.0)
                 .build();
     }
 
@@ -278,12 +309,30 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     @Override
-    public TaskDistributionResponse getTaskDistribution() {
-        long todoTasks = taskRepository.countByStatus("TODO");
-        long inProgressTasks = taskRepository.countByStatus("IN_PROGRESS");
-        long codeReviewTasks = taskRepository.countByStatus("CODE_REVIEW");
-        long testingTasks = taskRepository.countByStatus("TESTING");
-        long completedTasks = taskRepository.countByStatus("DONE");
+    public TaskDistributionResponse getTaskDistribution(Long orgId) {
+        // Use provided orgId if available, otherwise fall back to SecurityUtils
+        Long currentOrgId = orgId != null ? orgId : SecurityUtils.getCurrentUserOrganizationId().orElse(null);
+        boolean isSuperAdmin = SecurityUtils.isSuperAdmin();
+
+        long todoTasks;
+        long inProgressTasks;
+        long codeReviewTasks;
+        long testingTasks;
+        long completedTasks;
+
+        if (isSuperAdmin || currentOrgId == null) {
+            todoTasks = taskRepository.countByStatus("TODO");
+            inProgressTasks = taskRepository.countByStatus("IN_PROGRESS");
+            codeReviewTasks = taskRepository.countByStatus("CODE_REVIEW");
+            testingTasks = taskRepository.countByStatus("TESTING");
+            completedTasks = taskRepository.countByStatus("DONE");
+        } else {
+            todoTasks = taskRepository.countByOrganizationIdAndStatus(currentOrgId, "TODO");
+            inProgressTasks = taskRepository.countByOrganizationIdAndStatus(currentOrgId, "IN_PROGRESS");
+            codeReviewTasks = taskRepository.countByOrganizationIdAndStatus(currentOrgId, "CODE_REVIEW");
+            testingTasks = taskRepository.countByOrganizationIdAndStatus(currentOrgId, "TESTING");
+            completedTasks = taskRepository.countByOrganizationIdAndStatus(currentOrgId, "DONE");
+        }
 
         return TaskDistributionResponse.builder()
                 .todoTasks(todoTasks)
@@ -295,10 +344,19 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     @Override
-    public VelocityResponse getVelocity() {
-        List<Sprint> sprints = sprintRepository.findAllByOrderByStartDateAsc();
+    public VelocityResponse getVelocity(Long orgId) {
+        // Use provided orgId if available, otherwise fall back to SecurityUtils
+        Long currentOrgId = orgId != null ? orgId : SecurityUtils.getCurrentUserOrganizationId().orElse(null);
+        boolean isSuperAdmin = SecurityUtils.isSuperAdmin();
 
-        log.info("Found {} total sprints", sprints.size());
+        List<Sprint> sprints;
+        if (isSuperAdmin || currentOrgId == null) {
+            sprints = sprintRepository.findAllByOrderByStartDateAsc();
+        } else {
+            sprints = sprintRepository.findByOrganizationIdOrderByStartDateAsc(currentOrgId);
+        }
+
+        log.info("Found {} total sprints for org {}", sprints.size(), currentOrgId);
         log.info("Sprint statuses: {}", sprints.stream().map(s -> s.getSprintName() + "=" + s.getStatus()).collect(Collectors.toList()));
 
         List<VelocityPointResponse> points = sprints.stream()
@@ -330,9 +388,31 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     @Override
-    public BurndownResponse getBurndown() {
-        Sprint sprint = Optional.ofNullable(sprintRepository.findFirstByStatus("ACTIVE"))
-                .orElseThrow(() -> new ResourceNotFoundException("No active sprint found."));
+    public BurndownResponse getBurndown(Long orgId) {
+        // Use provided orgId if available, otherwise fall back to SecurityUtils
+        Long currentOrgId = orgId != null ? orgId : SecurityUtils.getCurrentUserOrganizationId().orElse(null);
+        boolean isSuperAdmin = SecurityUtils.isSuperAdmin();
+
+        Sprint sprint;
+        if (isSuperAdmin || currentOrgId == null) {
+            sprint = Optional.ofNullable(sprintRepository.findFirstByStatus("ACTIVE"))
+                    .orElse(null);
+        } else {
+            List<Sprint> activeSprints = sprintRepository.findByStatusAndOrganizationId("ACTIVE", currentOrgId);
+            sprint = activeSprints.isEmpty() ? null : activeSprints.get(0);
+        }
+
+        // If no active sprint, return empty response
+        if (sprint == null) {
+            return BurndownResponse.builder()
+                    .sprintId(null)
+                    .sprintName("No Active Sprint")
+                    .startDate(LocalDate.now())
+                    .endDate(LocalDate.now().plusDays(14))
+                    .totalStoryPoints(0)
+                    .points(Collections.emptyList())
+                    .build();
+        }
 
         List<Task> tasks = taskRepository.findBySprintId(sprint.getId());
 
@@ -396,8 +476,17 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     @Override
-    public IssueTrendResponse getIssueTrend() {
-        List<ReviewDocument> documents = reviewDocumentRepository.findAllByOrderByCreatedAtAsc();
+    public IssueTrendResponse getIssueTrend(Long orgId) {
+        // Use provided orgId if available, otherwise fall back to SecurityUtils
+        Long currentOrgId = orgId != null ? orgId : SecurityUtils.getCurrentUserOrganizationId().orElse(null);
+        boolean isSuperAdmin = SecurityUtils.isSuperAdmin();
+
+        List<ReviewDocument> documents;
+        if (isSuperAdmin || currentOrgId == null) {
+            documents = reviewDocumentRepository.findAllByOrderByCreatedAtAsc();
+        } else {
+            documents = reviewDocumentRepository.findByOrganizationIdOrderByCreatedAtAsc(currentOrgId);
+        }
 
         if (documents.isEmpty()) {
             return IssueTrendResponse.builder()
@@ -593,13 +682,63 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     @Override
     public byte[] generateDashboardReportPdf() {
-        AnalyticsDashboardResponse dashboard = getDashboard();
-        VelocityResponse velocity = getVelocity();
-        BurndownResponse burndown = getBurndown();
-        IssueTrendResponse issueTrend = getIssueTrend();
+        AnalyticsDashboardResponse dashboard = getDashboard(null);
+        VelocityResponse velocity = getVelocity(null);
+        BurndownResponse burndown = getBurndown(null);
+        IssueTrendResponse issueTrend = getIssueTrend(null);
         CycleTimeResponse cycleTime = getCycleTime();
         DeploymentFrequencyResponse deploymentFreq = getDeploymentFrequency();
         ChangeFailureRateResponse changeFailure = getChangeFailureRate();
+
+        // Handle null responses gracefully
+        if (burndown == null) {
+            burndown = BurndownResponse.builder()
+                    .sprintId(null)
+                    .sprintName("No Active Sprint")
+                    .startDate(LocalDate.now())
+                    .endDate(LocalDate.now().plusDays(14))
+                    .totalStoryPoints(0)
+                    .points(Collections.emptyList())
+                    .build();
+        }
+        if (velocity == null) {
+            velocity = VelocityResponse.builder()
+                    .sprints(Collections.emptyList())
+                    .build();
+        }
+        if (issueTrend == null) {
+            issueTrend = IssueTrendResponse.builder()
+                    .points(Collections.emptyList())
+                    .build();
+        }
+        if (cycleTime == null) {
+            cycleTime = CycleTimeResponse.builder()
+                    .averageCycleTimeHours(0.0)
+                    .completedTasks(0L)
+                    .measuredTasks(0L)
+                    .points(Collections.emptyList())
+                    .build();
+        }
+        if (deploymentFreq == null) {
+            deploymentFreq = DeploymentFrequencyResponse.builder()
+                    .totalSuccessfulDeployments(0L)
+                    .periodDays(30)
+                    .deploymentsPerDay(0.0)
+                    .deploymentsPerWeek(0.0)
+                    .periodStart(LocalDate.now().minusDays(29))
+                    .periodEnd(LocalDate.now())
+                    .build();
+        }
+        if (changeFailure == null) {
+            changeFailure = ChangeFailureRateResponse.builder()
+                    .totalProductionDeploymentAttempts(0L)
+                    .failedProductionDeployments(0L)
+                    .changeFailureRate(0.0)
+                    .periodDays(30)
+                    .periodStart(LocalDate.now().minusDays(29))
+                    .periodEnd(LocalDate.now())
+                    .build();
+        }
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document document = new Document();

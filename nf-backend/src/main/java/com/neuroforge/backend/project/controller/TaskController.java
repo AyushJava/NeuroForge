@@ -26,24 +26,24 @@ public class TaskController {
     // ── Write operations restricted by role ──────────────────────────────────
 
     /**
-     * Create Task — Project Manager, Org Admin, Super Admin only.
+     * Create Task — Project Manager, Super Admin only.
      * Developers and Testers can update task status via PUT but cannot create tasks.
      */
     @PostMapping
     @Operation(summary = "Create Task")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<TaskDto>> createTask(
             @Valid @RequestBody CreateTaskRequest request) {
         return ResponseEntity.ok(taskService.createTask(request));
     }
 
     /**
-     * Update Task — Project Manager, Org Admin, Super Admin, Developer, Tester.
+     * Update Task — Project Manager, Super Admin, Developer, Tester.
      * Developer/Tester use this to update task status; frontend limits which fields they send.
      */
     @PutMapping("/{id}")
     @Operation(summary = "Update Task")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER','ROLE_DEVELOPER','ROLE_QA')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER','ROLE_DEVELOPER','ROLE_QA')")
     public ResponseEntity<ApiResponse<TaskDto>> updateTask(
             @PathVariable Long id,
             @Valid @RequestBody UpdateTaskRequest request) {
@@ -51,11 +51,11 @@ public class TaskController {
     }
 
     /**
-     * Delete Task — Project Manager, Org Admin, Super Admin only.
+     * Delete Task — Project Manager, Super Admin only.
      */
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete Task")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ORG_ADMIN','ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deleteTask(@PathVariable Long id) {
         return ResponseEntity.ok(taskService.deleteTask(id));
     }

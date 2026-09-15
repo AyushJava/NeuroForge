@@ -23,4 +23,14 @@ public class AnalyticsDashboardResponse {
     private Integer completedStoryPoints;
     private Double completionPercentage;
     private Double averageCycleTimeHours;
+    private Long totalIssues;
+    private Long highIssues;
+    private Long mediumIssues;
+    private Long lowIssues;
+    private Long infoIssues;
+    private Long successfulDeployments;
+    private Long productionDeploymentAttempts;
+    private Long failedProductionDeployments;
+    private Double deploymentFrequencyPerDay;
+    private Double changeFailureRate;
 }

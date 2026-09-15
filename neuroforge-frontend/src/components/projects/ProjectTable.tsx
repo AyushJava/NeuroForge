@@ -7,7 +7,7 @@ import HealthBadge from './HealthBadge';
 interface ProjectTableProps {
   projects: Project[];
   basePath: string;
-  onDelete: (project: Project) => void;
+  onDelete?: (project: Project) => void;
   canEdit?: boolean;
 }
 
@@ -63,13 +63,15 @@ export default function ProjectTable({ projects, basePath, onDelete, canEdit = t
                       >
                         <Edit2 className="w-4 h-4" />
                       </Link>
-                      <button
-                        onClick={() => onDelete(project)}
-                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {onDelete && (
+                        <button
+                          onClick={() => onDelete(project)}
+                          className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

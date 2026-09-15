@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -7,6 +7,7 @@ import { FaBrain } from 'react-icons/fa';
 import { Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { authService } from '@/services/authService';
+import { organizationService, Organization } from '@/services/organizationService';
 import { useAuth } from '@/context/AuthContext';
 import { mapBackendRoleToUiRole, roleRouteMap } from '@/lib/roleUtils';
 
@@ -23,6 +24,7 @@ const registerSchema = z.object({
     .min(3, 'Username must be at least 3 characters')
     .max(30, 'Username must be at most 30 characters'),
   role: z.string().optional(),
+  organizationId: z.string().optional(),
   password: z.string()
     .min(8, 'Password must be at least 8 characters')
     .max(20)
@@ -72,6 +74,24 @@ export default function SignupPage() {
   const [showPassword, setShowPassword]   = useState(false);
   const [hasInvitation, setHasInvitation] = useState(false);
   const [invitationRole, setInvitationRole] = useState<string | null>(null);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
+
+  // Fetch public organizations on component mount
+  useEffect(() => {
+    const fetchOrganizations = async () => {
+      setIsLoadingOrgs(true);
+      try {
+        const response = await organizationService.getPublic();
+        setOrganizations(response.data?.data || []);
+      } catch (error) {
+        console.error('Failed to fetch organizations:', error);
+      } finally {
+        setIsLoadingOrgs(false);
+      }
+    };
+    fetchOrganizations();
+  }, []);
 
   // ─── Forms ─────────────────────────────────────────────────────────────────
   const emailForm = useForm<EmailFormValues>({
@@ -81,7 +101,7 @@ export default function SignupPage() {
 
   const registerForm = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { fullName: '', username: '', role: '', password: '', confirmPassword: '' },
+    defaultValues: { fullName: '', username: '', role: '', organizationId: '', password: '', confirmPassword: '' },
   });
 
   const pwStrength = getStrength(registerForm.watch('password'));
@@ -158,6 +178,11 @@ export default function SignupPage() {
       setApiError('Please select a role');
       return;
     }
+    // Validate organization selection for normal registration (no invitation)
+    if (!hasInvitation && !data.organizationId) {
+      setApiError('Please select an organization');
+      return;
+    }
     setIsRegistering(true);
     setApiError('');
     try {
@@ -165,6 +190,7 @@ export default function SignupPage() {
         name:     data.fullName,
         username: data.username,
         role:     data.role || (hasInvitation && invitationRole ? invitationRole : ''), // Use selected role or invitation role
+        organizationId: hasInvitation ? undefined : data.organizationId ? parseInt(data.organizationId) : undefined,
         email:    submittedEmail,
         otp:      currentOtp,
         password: data.password,
@@ -377,6 +403,27 @@ export default function SignupPage() {
                       </select>
                       {registerForm.formState.errors.role && (
                         <p className="text-xs text-red-400">{registerForm.formState.errors.role.message}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Organization - only show if no invitation */}
+                  {!hasInvitation && (
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-white" htmlFor="organizationId">Organization</label>
+                      <select
+                        id="organizationId"
+                        className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                        {...registerForm.register('organizationId')}
+                        disabled={isLoadingOrgs}
+                      >
+                        <option value="" disabled>{isLoadingOrgs ? 'Loading organizations...' : 'Select your organization'}</option>
+                        {organizations.map((org) => (
+                          <option key={org.id} value={org.id}>{org.name}</option>
+                        ))}
+                      </select>
+                      {registerForm.formState.errors.organizationId && (
+                        <p className="text-xs text-red-400">{registerForm.formState.errors.organizationId.message}</p>
                       )}
                     </div>
                   )}

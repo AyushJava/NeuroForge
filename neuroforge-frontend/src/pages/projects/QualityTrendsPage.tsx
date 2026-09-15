@@ -6,15 +6,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { TrendingUp, TrendingDown, Minus, Users, Loader2 } from 'lucide-react';
 import { codeReviewService, QualityTrendResponse } from '@/services/codeReviewService';
+import { organizationService, Organization } from '@/services/organizationService';
+import { useAuth } from '@/context/AuthContext';
 import Sidebar from '@/components/common/Sidebar';
 import DashboardNavbar from '@/components/common/DashboardNavbar';
 
 export default function QualityTrendsPage() {
+  const { user } = useAuth();
   const [selectedDeveloper, setSelectedDeveloper] = useState<string>('all');
 
+  // Get organizations to filter quality trends by active organization
+  const { data: orgsData } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: () => organizationService.getAll().then(r => r.data),
+  });
+  const orgs: Organization[] = orgsData?.data || [];
+  
+  // Use user's organizationId from JWT if available, otherwise fall back to most recent org
+  const activeOrg = user?.organizationId 
+    ? orgs.find(o => o.id === user.organizationId) || (orgs.length > 0 ? orgs[orgs.length - 1] : null)
+    : (orgs.length > 0 ? orgs[orgs.length - 1] : null);
+
   const { data: allTrends, isLoading } = useQuery({
-    queryKey: ['quality-trends'],
-    queryFn: () => codeReviewService.getQualityTrendsForAllDevelopers(),
+    queryKey: ['quality-trends', activeOrg?.id],
+    queryFn: () => codeReviewService.getQualityTrendsForAllDevelopers(activeOrg?.id),
+    enabled: !activeOrg || !!activeOrg.id,
   });
 
   const selectedTrendData = selectedDeveloper === 'all' 

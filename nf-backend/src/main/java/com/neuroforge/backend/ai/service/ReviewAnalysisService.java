@@ -14,7 +14,9 @@ import com.neuroforge.backend.mongodb.document.ReviewDocument;
 import com.neuroforge.backend.mongodb.document.ReviewIssue;
 import com.neuroforge.backend.mongodb.repository.ReviewDocumentRepository;
 import com.neuroforge.backend.project.entity.CodeReview;
+import com.neuroforge.backend.project.entity.Task;
 import com.neuroforge.backend.project.repository.CodeReviewRepository;
+import com.neuroforge.backend.project.repository.TaskRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +37,7 @@ public class ReviewAnalysisService {
     private final ReviewDocumentRepository reviewDocumentRepository;
     private final CommitCacheRepository commitCacheRepository;
     private final CodeChunkingService codeChunkingService;
+    private final TaskRepository taskRepository;
 
     public ReviewAnalysisService(
             PromptBuilderService promptBuilderService,
@@ -44,7 +47,8 @@ public class ReviewAnalysisService {
             CodeReviewRepository codeReviewRepository,
             ReviewDocumentRepository reviewDocumentRepository,
             CommitCacheRepository commitCacheRepository,
-            CodeChunkingService codeChunkingService) {
+            CodeChunkingService codeChunkingService,
+            TaskRepository taskRepository) {
         this.promptBuilderService = promptBuilderService;
         this.codeReviewGeminiService = codeReviewGeminiService;
         this.reviewResponseParser = reviewResponseParser;
@@ -53,6 +57,7 @@ public class ReviewAnalysisService {
         this.reviewDocumentRepository = reviewDocumentRepository;
         this.commitCacheRepository = commitCacheRepository;
         this.codeChunkingService = codeChunkingService;
+        this.taskRepository = taskRepository;
     }
 
     @Transactional
@@ -107,6 +112,12 @@ public class ReviewAnalysisService {
                     .collect(Collectors.toList());
         }
 
+        // Get organization from task for analytics filtering
+        Task task = taskRepository.findById(request.getTaskId()).orElse(null);
+        Long organizationId = task != null && task.getProject() != null && task.getProject().getOrganization() != null
+                ? task.getProject().getOrganization().getId()
+                : null;
+
         ReviewDocument reviewDocument = ReviewDocument.builder()
                 .reviewId(codeReview.getId().toString())
                 .taskId(request.getTaskId().toString())
@@ -117,6 +128,7 @@ public class ReviewAnalysisService {
                 .summary(parsedResponse.getSummary())
                 .issues(issues)
                 .createdAt(LocalDateTime.now())
+                .organizationId(organizationId)
                 .build();
 
         reviewDocumentRepository.save(reviewDocument);

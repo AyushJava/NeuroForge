@@ -21,13 +21,15 @@ public class SaveAISpecificationRequest {
 
     private String description;
 
-    private List<String> userStories;
+    private String[] userStories;
 
-    private List<String> acceptanceCriteria;
+    private String[] acceptanceCriteria;
 
-    private List<String> functionalRequirements;
+    private String[] functionalRequirements;
 
-    private List<String> nonFunctionalRequirements;
+    private String[] nonFunctionalRequirements;
 
     private String aiSpecificationId; // MongoDB reference
+
+    private Long organizationId;
 }

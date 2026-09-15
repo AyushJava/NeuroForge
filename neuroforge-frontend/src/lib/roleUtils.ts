@@ -10,21 +10,29 @@ export const mapBackendRoleToUiRole = (role?: string): UiRoleSlug => {
   const map: Record<string, UiRoleSlug> = {
     'ROLE_SUPER_ADMIN':     'super-admin',
     'SUPER_ADMIN':          'super-admin',
+    'super-admin':          'super-admin',
     'ROLE_ORG_ADMIN':       'org-admin',
     'ORG_ADMIN':            'org-admin',
+    'org-admin':            'org-admin',
     'ROLE_PROJECT_MANAGER': 'project-manager',
     'PROJECT_MANAGER':      'project-manager',
+    'project-manager':      'project-manager',
     'ROLE_DEVELOPER':       'developer',
     'DEVELOPER':            'developer',
+    'developer':            'developer',
     'ROLE_QA':              'qa',
     'QA':                   'qa',
+    'qa':                   'qa',
     'ROLE_CLIENT':          'client',
     'CLIENT':               'client',
+    'client':               'client',
     // legacy / fallback
     'ROLE_ADMIN':           'super-admin',
     'ADMIN':                'super-admin',
+    'admin':                'super-admin',
     'ROLE_USER':            'developer',
     'USER':                 'developer',
+    'user':                 'developer',
   };
   return map[role || ''] || 'developer';
 };
@@ -65,10 +73,19 @@ export const getProjectBasePath = (role: UiRoleSlug): string =>
 
 /**
  * Whether this role can create / edit / delete projects, sprints,
- * and manage project members.  PROJECT_MANAGER, ORG_ADMIN, SUPER_ADMIN.
+ * and manage project members.  PROJECT_MANAGER, SUPER_ADMIN only.
+ * Org Admin can only view projects, not create/edit them.
  */
 export const canManageProjects = (role: UiRoleSlug): boolean =>
-  ['super-admin', 'org-admin', 'project-manager'].includes(role);
+  ['super-admin', 'project-manager'].includes(role);
+
+/**
+ * Whether this role can create / edit / delete specifications.
+ * PROJECT_MANAGER, SUPER_ADMIN only.
+ * Org Admin can only view specifications, not create/edit them.
+ */
+export const canManageSpecifications = (role: UiRoleSlug): boolean =>
+  ['super-admin', 'project-manager'].includes(role);
 
 /** Alias — sprint management uses the same set of privileged roles */
 export const canManageSprints = canManageProjects;
@@ -88,10 +105,11 @@ export const canWriteTasks = canManageProjects;
 /**
  * Whether this role can EDIT an existing task (e.g. update status).
  * Developers and QA can update task status but not create/delete.
- * Client is read-only.
+ * Project Manager and Super Admin can edit all fields.
+ * Org Admin and Client are read-only.
  */
 export const canUpdateTasks = (role: UiRoleSlug): boolean =>
-  ['super-admin', 'org-admin', 'project-manager', 'developer', 'qa'].includes(role);
+  ['super-admin', 'project-manager', 'developer', 'qa'].includes(role);
 
 /**
  * Whether this role can view Module 5 features (Backlog, Kanban, Sprint Dashboard).

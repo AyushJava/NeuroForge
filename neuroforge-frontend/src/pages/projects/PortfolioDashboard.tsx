@@ -3,21 +3,65 @@ import { useQuery } from '@tanstack/react-query';
 import { FolderKanban, CheckCircle2, Clock, AlertCircle, TrendingUp, Loader2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { projectService, Project } from '@/services/projectService';
+import { organizationService, Organization } from '@/services/organizationService';
 import { useAuth } from '@/context/AuthContext';
+import { canManageProjects } from '@/lib/roleUtils';
 import Sidebar from '@/components/common/Sidebar';
 import DashboardNavbar from '@/components/common/DashboardNavbar';
 import HealthBadge from '@/components/projects/HealthBadge';
 import ProgressBar from '@/components/projects/ProgressBar';
 
+interface PortfolioProject {
+  id: number;
+  projectName: string;
+  description?: string;
+  status: string;
+  health: string;
+  organizationName?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
 export default function PortfolioDashboard() {
-  const { role } = useAuth();
+  const { user, role } = useAuth();
   const basePath = role === 'org-admin' ? '/org-admin/projects' : '/project-manager/projects';
+  const canEdit = canManageProjects(role);
+
+  // For org-admin and project-manager, get organizations to filter projects
+  const { data: orgsData } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: () => organizationService.getAll().then(r => r.data),
+    enabled: role === 'org-admin' || role === 'project-manager',
+  });
+  const orgs: Organization[] = orgsData?.data || [];
+  
+  // Use user's organizationId from JWT if available, otherwise fall back to most recent org
+  const activeOrg = user?.organizationId 
+    ? orgs.find(o => o.id === user.organizationId) || (orgs.length > 0 ? orgs[orgs.length - 1] : null)
+    : (orgs.length > 0 ? orgs[orgs.length - 1] : null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: () => projectService.getAll().then(r => r.data),
+    queryKey: ['portfolio', role, activeOrg?.id],
+    queryFn: () => {
+      if ((role === 'org-admin' || role === 'project-manager') && activeOrg?.id) {
+        return projectService.getPortfolio(activeOrg.id).then(r => r.data);
+      }
+      return projectService.getAll().then(r => r.data);
+    },
+    enabled: (role !== 'org-admin' && role !== 'project-manager') || !!activeOrg?.id,
   });
-  const projects: Project[] = data?.data || [];
+  const projects: PortfolioProject[] = data?.data || [];
+
+  // Fetch project stats to get task completion rates
+  const { data: projectStatsData } = useQuery({
+    queryKey: ['project-stats', projects.map(p => p.id)],
+    queryFn: () => Promise.all(projects.map(p => projectService.getStats(p.id).then(r => r.data))),
+    enabled: projects.length > 0,
+  });
+  const projectStats: any[] = projectStatsData || [];
+
+  // Extract actual stats data from nested response
+  const actualProjectStats = projectStats.map(stat => stat?.data || stat);
 
   const stats = useMemo(() => {
     const total      = projects.length;
@@ -25,8 +69,14 @@ export default function PortfolioDashboard() {
     const completed  = projects.filter(p => p.status === 'COMPLETED').length;
     const onHold     = projects.filter(p => p.status === 'ON_HOLD').length;
     const archived   = projects.filter(p => p.status === 'ARCHIVED').length;
-    return { total, active, completed, onHold, archived };
-  }, [projects]);
+
+    // Calculate task-based completion rate
+    const totalTasks = actualProjectStats.reduce((sum, stat) => sum + (stat?.totalTasks || 0), 0);
+    const completedTasks = actualProjectStats.reduce((sum, stat) => sum + (stat?.completedTasks || 0), 0);
+    const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    return { total, active, completed, onHold, archived, taskCompletionRate };
+  }, [projects, actualProjectStats]);
 
   const statusGroups = [
     { status: 'ACTIVE',    icon: TrendingUp,    color: 'text-emerald-400', bg: 'bg-emerald-500/10', count: stats.active },
@@ -54,12 +104,14 @@ export default function PortfolioDashboard() {
                 Overview of all {stats.total} project{stats.total !== 1 ? 's' : ''}
               </p>
             </div>
-            <Link
-              href={`${basePath}`}
-              className="text-sm text-primary hover:text-blue-400 transition-colors"
-            >
-              View All Projects →
-            </Link>
+            {canEdit && (
+              <Link
+                href={`${basePath}`}
+                className="text-sm text-primary hover:text-blue-400 transition-colors"
+              >
+                View All Projects →
+              </Link>
+            )}
           </div>
 
           {isLoading && (
@@ -117,7 +169,7 @@ export default function PortfolioDashboard() {
                     {[
                       { label: 'Total Projects', value: stats.total, icon: FolderKanban },
                       { label: 'Active Rate', value: stats.total > 0 ? `${Math.round((stats.active / stats.total) * 100)}%` : '0%', icon: TrendingUp },
-                      { label: 'Completion Rate', value: stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}%` : '0%', icon: CheckCircle2 },
+                      { label: 'Task Completion Rate', value: `${stats.taskCompletionRate}%`, icon: CheckCircle2 },
                     ].map(s => (
                       <div key={s.label} className="flex items-center gap-3 p-3 bg-background rounded-lg">
                         <s.icon className="w-4 h-4 text-primary flex-shrink-0" />
@@ -133,7 +185,7 @@ export default function PortfolioDashboard() {
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="p-5 border-b border-border flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-white">Recent Projects</h3>
-                  <Link href={basePath} className="text-xs text-primary hover:text-blue-400 transition-colors">View All</Link>
+                  {canEdit && <Link href={basePath} className="text-xs text-primary hover:text-blue-400 transition-colors">View All</Link>}
                 </div>
                 {recentProjects.length === 0 ? (
                   <div className="p-10 text-center">
@@ -148,6 +200,7 @@ export default function PortfolioDashboard() {
                         <tr className="bg-background/50 border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
                           <th className="px-5 py-3 font-medium">Project</th>
                           <th className="px-5 py-3 font-medium">Organization</th>
+                          <th className="px-5 py-3 font-medium">Health</th>
                           <th className="px-5 py-3 font-medium">Status</th>
                           <th className="px-5 py-3 font-medium">Created</th>
                           <th className="px-5 py-3 font-medium"></th>
@@ -163,14 +216,17 @@ export default function PortfolioDashboard() {
                               )}
                             </td>
                             <td className="px-5 py-3.5 text-muted-foreground">{p.organizationName || '—'}</td>
+                            <td className="px-5 py-3.5"><HealthBadge status={p.health} size="sm" /></td>
                             <td className="px-5 py-3.5"><HealthBadge status={p.status} size="sm" /></td>
                             <td className="px-5 py-3.5 text-muted-foreground text-xs">
-                              {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}
+                              {p.startDate ? new Date(p.startDate).toLocaleDateString() : '—'}
                             </td>
                             <td className="px-5 py-3.5">
-                              <Link href={`${basePath}/${p.id}`} className="text-xs text-primary hover:text-blue-400 transition-colors">
-                                View →
-                              </Link>
+                              {canEdit && (
+                                <Link href={`${basePath}/${p.id}`} className="text-xs text-primary hover:text-blue-400 transition-colors">
+                                  View →
+                                </Link>
+                              )}
                             </td>
                           </tr>
                         ))}

@@ -38,6 +38,7 @@ public class SecurityConfig {
         "/api/invitations/accept",
         "/api/invitations/reject",
         "/api/invitations/validate",
+        "/api/organizations/public",
         "/swagger-ui/**",
         "/swagger-ui.html",
         "/api-docs/**",
@@ -62,7 +63,7 @@ public class SecurityConfig {
 
                 // Org management
                 .requestMatchers("/api/organizations/**").hasAnyAuthority(
-                        "ROLE_SUPER_ADMIN", "ROLE_ORG_ADMIN")
+                        "ROLE_SUPER_ADMIN", "ROLE_ORG_ADMIN", "ROLE_PROJECT_MANAGER")
 
                 // Invitation management (send/list/cancel) — org-level protected
                 .requestMatchers("/api/invitations/**").authenticated()
@@ -83,7 +84,7 @@ public class SecurityConfig {
                 // Project management — all authenticated users can READ; writes restricted via @PreAuthorize
                 .requestMatchers(HttpMethod.GET, "/api/projects/**").authenticated()
                 .requestMatchers("/api/projects/**").hasAnyAuthority(
-                        "ROLE_SUPER_ADMIN", "ROLE_ORG_ADMIN", "ROLE_PROJECT_MANAGER")
+                        "ROLE_SUPER_ADMIN", "ROLE_PROJECT_MANAGER")
 
                 // Sprint management — all roles can READ; writes restricted via @PreAuthorize
                 .requestMatchers("/api/sprints/**").authenticated()

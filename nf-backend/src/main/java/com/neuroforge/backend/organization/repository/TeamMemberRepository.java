@@ -28,4 +28,12 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
     @Modifying(clearAutomatically = true)
     @Query("UPDATE TeamMember tm SET tm.team = null WHERE tm.team.id = :teamId")
     void detachFromTeam(@Param("teamId") Long teamId);
+
+    /**
+     * Delete all TeamMember records for a given user ID.
+     * Called when deleting a user to remove them from teams and organizations.
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM TeamMember tm WHERE tm.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }

@@ -33,8 +33,21 @@ public class SpecificationController {
 
     // ── Module 4: AI Generation ─────────────────────────────────────────────
 
+    @GetMapping("/project/{projectId}/approved")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_QA', 'ROLE_PROJECT_MANAGER', 'ROLE_DEVELOPER', 'ROLE_ORG_ADMIN')")
+    public ResponseEntity<ApiResponse<Page<SpecificationResponse>>> getApprovedSpecificationsByProject(
+            @PathVariable Long projectId,
+            @PageableDefault(size = 50) Pageable pageable) {
+
+        log.info("Get approved specifications by project request received | projectId={}", projectId);
+
+        Page<SpecificationResponse> response = specificationService.getApprovedSpecificationsByProject(projectId, pageable);
+
+        return ResponseEntity.ok(ApiResponse.ok("Approved specifications retrieved", response));
+    }
+
     @PostMapping("/generate")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ORG_ADMIN', 'ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<GenerateSpecificationResponse>> generateSpecification(
             @Valid @RequestBody GenerateSpecificationRequest request) {
 
@@ -47,7 +60,7 @@ public class SpecificationController {
     }
 
     @PostMapping("/save-ai")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ORG_ADMIN', 'ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<SpecificationResponse>> saveAISpecification(
             @Valid @RequestBody SaveAISpecificationRequest request) {
 
@@ -62,7 +75,7 @@ public class SpecificationController {
     // ── Existing CRUD Operations ───────────────────────────────────────────────
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ORG_ADMIN', 'ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<SpecificationResponse>> createSpecification(
             @Valid @RequestBody CreateSpecificationRequest request) {
 
@@ -93,6 +106,8 @@ public class SpecificationController {
 
             @RequestParam(required = false) SpecificationStatus status,
 
+            @RequestParam(required = false) Long orgId,
+
             @PageableDefault(
                     page = 0,
                     size = 10,
@@ -100,9 +115,10 @@ public class SpecificationController {
             )
             Pageable pageable) {
 
-        log.info("Search Specifications Request received | title={} | status={} | page={} | size={}",
+        log.info("Search Specifications Request received | title={} | status={} | orgId={} | page={} | size={}",
                 title,
                 status,
+                orgId,
                 pageable.getPageNumber(),
                 pageable.getPageSize()
         );
@@ -111,6 +127,7 @@ public class SpecificationController {
                 specificationService.getAllSpecifications(
                         title,
                         status,
+                        orgId,
                         pageable
                 );
 
@@ -118,7 +135,7 @@ public class SpecificationController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ORG_ADMIN', 'ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<SpecificationResponse>> updateSpecification(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateSpecificationRequest request) {
@@ -132,7 +149,7 @@ public class SpecificationController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ORG_ADMIN', 'ROLE_PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_PROJECT_MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deleteSpecification(
             @PathVariable UUID id) {
 

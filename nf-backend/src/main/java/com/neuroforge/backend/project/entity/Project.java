@@ -34,6 +34,14 @@ public class Project {
 
     private LocalDateTime endDate;
 
+    // Methodology: AGILE, WATERFALL, HYBRID
+    @Column
+    private String methodology;
+
+    // Tech stack tags (comma-separated)
+    @Column(columnDefinition = "TEXT")
+    private String techStack;
+
     // Organization that owns this project
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organization_id")
@@ -46,6 +54,11 @@ public class Project {
     // Tasks
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Task> tasks;
+
+    // Milestones
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<Milestone> milestones = new ArrayList<>();
 
     // Assigned Team Members
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -23,4 +23,8 @@ public class CreateSpecificationRequest {
 
     private String nonFunctionalRequirements;
 
+    private Long organizationId;
+
+    private String projectId;
+
 }

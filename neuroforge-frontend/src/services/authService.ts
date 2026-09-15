@@ -5,6 +5,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: string;      // e.g. "ROLE_DEVELOPER" from backend JWT
+  organizationId?: number; // Organization ID from backend
   approvalStatus?: string; // e.g. "APPROVED", "PENDING", "REJECTED"
 }
 
@@ -42,7 +43,7 @@ export const authService = {
   },
 
   // ── Registration: Step 2 — register with OTP ────────────────────────────────
-  // POST /auth/register  { name, username, role, email, otp, password }
+  // POST /auth/register  { name, username, role, email, otp, password, organizationId }
   register: async (payload: {
     name: string;
     username: string;
@@ -50,6 +51,7 @@ export const authService = {
     email: string;
     otp: string;
     password: string;
+    organizationId?: number;
   }) => {
     const { data } = await authApi.post('/register', payload);
     return data; // { success, message }
@@ -70,6 +72,7 @@ export const authService = {
       name:  resp.name  ?? email,
       email: resp.email ?? email,
       role:  resp.role  ?? 'ROLE_USER',
+      organizationId: resp.organizationId,
     };
     localStorage.setItem('user', JSON.stringify(user));
     return user;

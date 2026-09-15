@@ -9,6 +9,7 @@ import java.util.List;
 public interface OrganizationService {
     ApiResponse<OrganizationDto> createOrganization(CreateOrganizationRequest request, User currentUser);
     ApiResponse<List<OrganizationDto>> getAllOrganizations(User currentUser);
+    ApiResponse<List<OrganizationDto>> getPublicOrganizations();
     ApiResponse<OrganizationDto> getOrganizationById(Long id);
     ApiResponse<OrganizationDto> updateOrganization(Long id, UpdateOrganizationRequest request);
     ApiResponse<Void> deleteOrganization(Long id);

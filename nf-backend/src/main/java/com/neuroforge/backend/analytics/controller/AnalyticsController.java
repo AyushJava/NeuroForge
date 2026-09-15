@@ -53,12 +53,12 @@ public class AnalyticsController {
 
     @GetMapping("/dashboard")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<AnalyticsDashboardResponse> getDashboard() {
-        return ResponseEntity.ok(analyticsService.getDashboard());
+    public ResponseEntity<AnalyticsDashboardResponse> getDashboard(@RequestParam(required = false) Long orgId) {
+        return ResponseEntity.ok(analyticsService.getDashboard(orgId));
     }
 
     @GetMapping("/portfolio/organization/{orgId}")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ORG_ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<PortfolioHealthResponse> getPortfolioHealth(@PathVariable Long orgId) {
         return ResponseEntity.ok(portfolioHealthService.getPortfolioHealth(orgId));
     }
@@ -95,26 +95,26 @@ public class AnalyticsController {
 
     @GetMapping("/task-distribution")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ORG_ADMIN', 'ROLE_PROJECT_MANAGER', 'ROLE_DEVELOPER', 'ROLE_QA', 'ROLE_CLIENT')")
-    public ResponseEntity<TaskDistributionResponse> getTaskDistribution() {
-        return ResponseEntity.ok(analyticsService.getTaskDistribution());
+    public ResponseEntity<TaskDistributionResponse> getTaskDistribution(@RequestParam(required = false) Long orgId) {
+        return ResponseEntity.ok(analyticsService.getTaskDistribution(orgId));
     }
 
     @GetMapping("/velocity")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<VelocityResponse> getVelocity() {
-        return ResponseEntity.ok(analyticsService.getVelocity());
+    public ResponseEntity<VelocityResponse> getVelocity(@RequestParam(required = false) Long orgId) {
+        return ResponseEntity.ok(analyticsService.getVelocity(orgId));
     }
 
     @GetMapping("/burndown")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<BurndownResponse> getBurndown() {
-        return ResponseEntity.ok(analyticsService.getBurndown());
+    public ResponseEntity<BurndownResponse> getBurndown(@RequestParam(required = false) Long orgId) {
+        return ResponseEntity.ok(analyticsService.getBurndown(orgId));
     }
 
     @GetMapping("/issue-trend")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<IssueTrendResponse> getIssueTrend() {
-        return ResponseEntity.ok(analyticsService.getIssueTrend());
+    public ResponseEntity<IssueTrendResponse> getIssueTrend(@RequestParam(required = false) Long orgId) {
+        return ResponseEntity.ok(analyticsService.getIssueTrend(orgId));
     }
 
     @GetMapping("/cycle-time")

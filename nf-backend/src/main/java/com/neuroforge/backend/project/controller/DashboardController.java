@@ -21,7 +21,7 @@ public class DashboardController {
 
     @GetMapping
     @Operation(summary = "Get Dashboard Statistics")
-    public ResponseEntity<ApiResponse<DashboardDto>> getDashboard() {
-        return ResponseEntity.ok(dashboardService.getDashboard());
+    public ResponseEntity<ApiResponse<DashboardDto>> getDashboard(@RequestParam(required = false) Long orgId) {
+        return ResponseEntity.ok(dashboardService.getDashboard(orgId));
     }
 }

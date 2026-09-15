@@ -13,19 +13,19 @@ import com.neuroforge.backend.analytics.dto.VelocityResponse;
 
 public interface AnalyticsService {
 
-    AnalyticsDashboardResponse getDashboard();
+    AnalyticsDashboardResponse getDashboard(Long orgId);
 
     SprintAnalyticsResponse getSprintAnalytics(Long sprintId);
 
     DeveloperAnalyticsResponse getDeveloperAnalytics(Long userId);
 
-    TaskDistributionResponse getTaskDistribution();
+    TaskDistributionResponse getTaskDistribution(Long orgId);
 
-    VelocityResponse getVelocity();
+    VelocityResponse getVelocity(Long orgId);
 
-    BurndownResponse getBurndown();
+    BurndownResponse getBurndown(Long orgId);
 
-    IssueTrendResponse getIssueTrend();
+    IssueTrendResponse getIssueTrend(Long orgId);
 
     CycleTimeResponse getCycleTime();
 

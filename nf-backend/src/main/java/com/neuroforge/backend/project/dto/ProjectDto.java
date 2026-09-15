@@ -17,6 +17,10 @@ public class ProjectDto {
     private String status;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
+    // Methodology: AGILE, WATERFALL, HYBRID
+    private String methodology;
+    // Tech stack tags (comma-separated)
+    private String techStack;
     private Long organizationId;
     private String organizationName;
     private LocalDateTime createdAt;
@@ -32,6 +36,8 @@ public class ProjectDto {
                 .status(project.getStatus())
                 .startDate(project.getStartDate())
                 .endDate(project.getEndDate())
+                .methodology(project.getMethodology())
+                .techStack(project.getTechStack())
                 .organizationId(
                         project.getOrganization() != null
                                 ? project.getOrganization().getId()

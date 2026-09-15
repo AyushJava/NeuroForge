@@ -7,7 +7,7 @@ import { projectService } from '@/services/projectService';
 import { useAuth } from '@/context/AuthContext';
 import Sidebar from '@/components/common/Sidebar';
 import DashboardNavbar from '@/components/common/DashboardNavbar';
-import ProjectForm, { ProjectFormValues } from '@/components/projects/ProjectForm';
+import ProjectWizard, { ProjectFormValues } from '@/components/projects/ProjectWizard';
 import { useToast } from '@/hooks/use-toast';
 
 export default function CreateProjectPage() {
@@ -26,6 +26,8 @@ export default function CreateProjectPage() {
         status:         data.status || 'ACTIVE',
         startDate:      data.startDate || undefined,
         endDate:        data.endDate   || undefined,
+        methodology:    data.methodology,
+        techStack:      data.techStack,
         organizationId: data.organizationId,
       }),
     onSuccess: (res) => {
@@ -67,8 +69,8 @@ export default function CreateProjectPage() {
                 </div>
               </div>
 
-              <ProjectForm
-                onSubmit={async (data) => { await mutation.mutateAsync(data); }}
+              <ProjectWizard
+                onSubmit={async (data: ProjectFormValues) => { await mutation.mutateAsync(data); }}
                 isLoading={mutation.isPending}
               />
             </div>

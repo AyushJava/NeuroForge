@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { useLocation } from 'wouter';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useLocation, useSearchParams } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, LayoutGrid, List, Search } from 'lucide-react';
 import { projectService, Project } from '@/services/projectService';
+import { organizationService, Organization } from '@/services/organizationService';
 import { useAuth } from '@/context/AuthContext';
 import { canManageProjects, getProjectBasePath } from '@/lib/roleUtils';
 import Sidebar from '@/components/common/Sidebar';
@@ -19,7 +20,8 @@ const STATUSES = ['ALL', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'ARCHIVED', 'INACTIVE
 
 export default function ProjectListPage() {
   const [, setLocation] = useLocation();
-  const { role } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { user, role } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -31,10 +33,31 @@ export default function ProjectListPage() {
 
   const basePath = getProjectBasePath(role);
   const canEdit  = canManageProjects(role);
+  const specId = searchParams.get('spec');
+
+  // For org-admin and project-manager, get organizations to filter projects
+  // Also use the user's organizationId from JWT if available
+  const { data: orgsData } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: () => organizationService.getAll().then(r => r.data),
+    enabled: role === 'org-admin' || role === 'project-manager',
+  });
+  const orgs: Organization[] = orgsData?.data || [];
+  
+  // Use user's organizationId from JWT if available, otherwise fall back to most recent org
+  const activeOrg = user?.organizationId 
+    ? orgs.find(o => o.id === user.organizationId) || (orgs.length > 0 ? orgs[orgs.length - 1] : null)
+    : (orgs.length > 0 ? orgs[orgs.length - 1] : null);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['projects'],
-    queryFn: () => projectService.getAll().then(r => r.data),
+    queryKey: ['projects', role, activeOrg?.id],
+    queryFn: () => {
+      if ((role === 'org-admin' || role === 'project-manager') && activeOrg?.id) {
+        return projectService.getByOrganization(activeOrg.id).then(r => r.data);
+      }
+      return projectService.getAll().then(r => r.data);
+    },
+    enabled: (role !== 'org-admin' && role !== 'project-manager') || !!activeOrg?.id,
   });
 
   const projects: Project[] = data?.data || [];
@@ -52,6 +75,13 @@ export default function ProjectListPage() {
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // If spec parameter is present, navigate to the first project's test cases tab
+  useEffect(() => {
+    if (specId && paginated.length > 0) {
+      setLocation(`${basePath}/${paginated[0].id}?tab=test-cases&spec=${specId}`);
+    }
+  }, [specId, paginated, basePath, setLocation]);
 
   const deleteMutation = useMutation({
     mutationFn: (project: Project) => projectService.delete(project.id),
@@ -162,7 +192,7 @@ export default function ProjectListPage() {
               {view === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {paginated.map(p => (
-                    <ProjectCard key={p.id} project={p} basePath={basePath} />
+                    <ProjectCard key={p.id} project={p} basePath={basePath} showViewDetails={role !== 'org-admin'} />
                   ))}
                 </div>
               ) : (

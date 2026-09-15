@@ -20,8 +20,11 @@ public interface SpecificationService {
     Page<SpecificationResponse> getAllSpecifications(
             String title,
             SpecificationStatus status,
+            Long orgId,
             Pageable pageable
     );
+
+    Page<SpecificationResponse> getApprovedSpecificationsByProject(Long projectId, Pageable pageable);
 
     SpecificationResponse updateSpecification(
             UUID id,
